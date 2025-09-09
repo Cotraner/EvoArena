@@ -3,4 +3,10 @@ project(EvoArena)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_executable(EvoArena main.cpp)
+find_package(SDL2 REQUIRED)
+include_directories(${SDL2_INCLUDE_DIRS})
+
+add_executable(EvoArena main.cpp graphics.cpp)
+
+target_link_libraries(EvoArena ${SDL2_LIBRARIES})
+
