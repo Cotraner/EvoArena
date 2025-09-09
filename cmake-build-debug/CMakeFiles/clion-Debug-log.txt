@@ -1,4 +1,4 @@
-/usr/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "Unix Makefiles" -S "/mnt/c/Users/Nathan/OneDrive - yncréa/Documents/Cours/Année_3/C/EvoArena" -B "/mnt/c/Users/Nathan/OneDrive - yncréa/Documents/Cours/Année_3/C/EvoArena/cmake-build-debug"
+C:\Windows\system32\wsl.exe --distribution Debian --exec /bin/bash -c "export CMAKE_COLOR_DIAGNOSTICS=ON && export CLION_IDE=TRUE && export JETBRAINS_IDE=TRUE && cd /mnt/c/Users/Surface/Documents/taff/FISA3/projetC/EvoArena/cmake-build-debug && /usr/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G 'CodeBlocks - Unix Makefiles' -S /mnt/c/Users/Surface/Documents/taff/FISA3/projetC/EvoArena -B /mnt/c/Users/Surface/Documents/taff/FISA3/projetC/EvoArena/cmake-build-debug"
 -- The C compiler identification is GNU 12.2.0
 -- The CXX compiler identification is GNU 12.2.0
 -- Detecting C compiler ABI info
@@ -13,4 +13,4 @@
 -- Detecting CXX compile features - done
 -- Configuring done
 -- Generating done
--- Build files have been written to: /mnt/c/Users/Nathan/OneDrive - yncréa/Documents/Cours/Année_3/C/EvoArena/cmake-build-debug
+-- Build files have been written to: /mnt/c/Users/Surface/Documents/taff/FISA3/projetC/EvoArena/cmake-build-debug

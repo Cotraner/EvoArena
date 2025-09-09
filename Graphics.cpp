@@ -14,5 +14,6 @@ Graphics::~Graphics() {
         SDL_DestroyWindow(this->_window);
         this->_window = nullptr;
     }
+    printf("BBAC");
     SDL_Quit();
 }
