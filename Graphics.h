@@ -3,9 +3,6 @@
 
 #include <SDL2/SDL.h>
 
-struct SDL_Window;
-struct SDL_Renderer;
-
 class Graphics {
 public:
     Graphics();
