@@ -1,6 +1,9 @@
-#include <iostream>
+#include "graphics.h"
 
 int main() {
-    std::cout << "Hello, World!" << std::endl;
+    Graphics graphics;
+    while (true){
+
+    }
     return 0;
 }
