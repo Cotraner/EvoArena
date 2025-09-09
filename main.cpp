@@ -13,11 +13,7 @@ int main() {
             }
         }
 
-        // ... rendu éventuel ...
     }
 
-    // Ici, quand on sort de main(),
-    // l'objet graphics est détruit automatiquement
-    // et ton destructeur est appelé.
     return 0;
 }
