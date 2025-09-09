@@ -129,6 +129,30 @@ EvoArena/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/EvoArena.dir/build.make CMakeFiles/EvoArena.dir/build
 .PHONY : EvoArena/fast
 
+graphics.o: graphics.cpp.o
+.PHONY : graphics.o
+
+# target to build an object file
+graphics.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/EvoArena.dir/build.make CMakeFiles/EvoArena.dir/graphics.cpp.o
+.PHONY : graphics.cpp.o
+
+graphics.i: graphics.cpp.i
+.PHONY : graphics.i
+
+# target to preprocess a source file
+graphics.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/EvoArena.dir/build.make CMakeFiles/EvoArena.dir/graphics.cpp.i
+.PHONY : graphics.cpp.i
+
+graphics.s: graphics.cpp.s
+.PHONY : graphics.s
+
+# target to generate assembly for a file
+graphics.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/EvoArena.dir/build.make CMakeFiles/EvoArena.dir/graphics.cpp.s
+.PHONY : graphics.cpp.s
+
 main.o: main.cpp.o
 .PHONY : main.o
 
@@ -162,6 +186,9 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... EvoArena"
+	@echo "... graphics.o"
+	@echo "... graphics.i"
+	@echo "... graphics.s"
 	@echo "... main.o"
 	@echo "... main.i"
 	@echo "... main.s"

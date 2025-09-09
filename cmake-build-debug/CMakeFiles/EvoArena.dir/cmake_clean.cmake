@@ -1,4 +1,6 @@
 file(REMOVE_RECURSE
+  "CMakeFiles/EvoArena.dir/graphics.cpp.o"
+  "CMakeFiles/EvoArena.dir/graphics.cpp.o.d"
   "CMakeFiles/EvoArena.dir/main.cpp.o"
   "CMakeFiles/EvoArena.dir/main.cpp.o.d"
   "EvoArena"
