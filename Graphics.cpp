@@ -3,6 +3,11 @@
 Graphics::Graphics(){
     SDL_CreateWindowAndRenderer(640, 480, 0, &this->_window, &this->_renderer);
     SDL_SetWindowTitle(this->_window, "EvoArena");
+
+    //Fond vert
+    SDL_SetRenderDrawColor(this->_renderer, 0, 150, 0, 0);
+    SDL_RenderClear(this->_renderer);
+    SDL_RenderPresent(this->_renderer);
 }
 
 Graphics::~Graphics() {
