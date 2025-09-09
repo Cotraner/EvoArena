@@ -1,1 +1,0 @@
-/usr/bin/c++ -g CMakeFiles/EvoArena.dir/main.cpp.o CMakeFiles/EvoArena.dir/graphics.cpp.o -o EvoArena  /usr/lib/x86_64-linux-gnu/libSDL2.so 
