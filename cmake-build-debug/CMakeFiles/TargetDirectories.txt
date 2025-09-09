@@ -1,3 +1,0 @@
-/mnt/c/Users/maxim/Documents/FISA3/EvoArena/cmake-build-debug/CMakeFiles/EvoArena.dir
-/mnt/c/Users/maxim/Documents/FISA3/EvoArena/cmake-build-debug/CMakeFiles/edit_cache.dir
-/mnt/c/Users/maxim/Documents/FISA3/EvoArena/cmake-build-debug/CMakeFiles/rebuild_cache.dir

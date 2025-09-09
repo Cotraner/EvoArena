@@ -14,5 +14,7 @@ Graphics::~Graphics() {
         SDL_DestroyWindow(this->_window);
         this->_window = nullptr;
     }
+    printf("BBAC"); //LE big burger au caca
+
     SDL_Quit();
 }
