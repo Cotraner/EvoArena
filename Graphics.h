@@ -11,8 +11,8 @@ public:
     Graphics();
     ~Graphics();
 private:
-    SDL_Window* _window;
-    SDL_Renderer* _renderer;
+    SDL_Window* window;
+    SDL_Renderer* renderer;
 };
 
 
