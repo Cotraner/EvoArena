@@ -1,2 +1,2 @@
 # EvoArena
-Petit projet de jeu FISA3é
+Petit projet de jeu FISA3
