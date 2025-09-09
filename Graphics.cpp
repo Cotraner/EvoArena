@@ -5,6 +5,14 @@ Graphics::Graphics(){
     SDL_SetWindowTitle(this->_window, "EvoArena");
 }
 
-Graphics::~Graphics(){
-    SDL_DestroyWindow(this->_window);
+Graphics::~Graphics() {
+    if (this->_renderer) {
+        SDL_DestroyRenderer(this->_renderer);
+        this->_renderer = nullptr;
+    }
+    if (this->_window) {
+        SDL_DestroyWindow(this->_window);
+        this->_window = nullptr;
+    }
+    SDL_Quit();
 }
