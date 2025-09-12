@@ -2,6 +2,7 @@
 #define EVOARENA_GRAPHICS_H
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL2_gfxPrimitives.h>
 
 struct SDL_Window;
 struct SDL_Renderer;

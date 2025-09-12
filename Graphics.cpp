@@ -7,6 +7,15 @@ Graphics::Graphics(){
     //Fond vert
     SDL_SetRenderDrawColor(renderer, 0, 150, 0, 0);
     SDL_RenderClear(renderer);
+
+
+    // Dessiner un cercle rempli rouge (x=320, y=240, rayon=50)
+    filledCircleRGBA(renderer, 320, 240, 50, 255, 0, 0, 255);
+
+    // Dessiner un contour noir autour
+    circleRGBA(renderer, 320, 240, 50, 0, 0, 0, 255);
+
+
     SDL_RenderPresent(renderer);
 }
 
