@@ -4,9 +4,6 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL2_gfxPrimitives.h>
 
-struct SDL_Window;
-struct SDL_Renderer;
-
 class Graphics {
 public:
     Graphics();
