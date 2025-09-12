@@ -7,6 +7,9 @@ class Graphics {
 public:
     Graphics();
     ~Graphics();
+
+    SDL_Renderer* getRenderer() { return renderer; } ;
+    SDL_Window* getWindow() { return window; } ;
 private:
     SDL_Window* window;
     SDL_Renderer* renderer;
