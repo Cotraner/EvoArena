@@ -12,10 +12,16 @@ public:
     ~Entity();
 
     void update();
-
     void draw(SDL_Renderer* renderer);
+    void chooseDirection(int target[2] = nullptr);
 
-    void randomMove();
+    int getX() const { return x; }
+    int getY() const { return y; }
+    int getRad() const { return rad; }
+    int getDirectionX() const { return direction[0]; }
+    int getDirectionY() const { return direction[1]; }
+    int getSightRadius() const { return sightRadius; }
+
 
 
 private:
@@ -23,6 +29,8 @@ private:
     int rad;
     int health;
     int speed;
+    int direction[2];
+    int sightRadius = 50;
     SDL_Color color;
 
 };
