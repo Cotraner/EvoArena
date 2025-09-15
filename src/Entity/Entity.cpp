@@ -1,11 +1,10 @@
 #include <random>
 #include <iostream>
-
 #include "Entity.h"
 
 
-Entity::Entity(int x, int y, int rad, int health, int speed, SDL_Color color):
-    x(x), y(y), rad(rad), health(health), speed(speed), color(color) {
+Entity::Entity(int x, int y, int rad, int health, int speed,int stamina, SDL_Color color):
+    x(x), y(y), rad(rad), health(health), speed(speed), stamina(stamina), color(color) {
 }
 
 Entity::~Entity() {
