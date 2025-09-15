@@ -8,7 +8,7 @@
 
 class Entity {
 public:
-    Entity(int x, int y, int rad, int health, int speed, SDL_Color color);
+    Entity(int x, int y, int rad, int health, int speed, int stamina, SDL_Color color);
     ~Entity();
 
     void update();
@@ -23,6 +23,12 @@ public:
     int getSightRadius() const { return sightRadius; }
 
 
+    int getHealth() const { return health; }
+    void setHealth(int h) { health = h; }
+    int getStamina() const { return stamina; }
+    void setStamina(int s) { stamina = s; }
+
+
 
 private:
     int x,y;
@@ -31,6 +37,7 @@ private:
     int speed;
     int direction[2];
     int sightRadius = 50;
+    int stamina;
     SDL_Color color;
 
 };
