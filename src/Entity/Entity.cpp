@@ -1,10 +1,11 @@
 #include <random>
 #include <iostream>
+#include <utility>
 #include "Entity.h"
 
 
-Entity::Entity(int x, int y, int rad,int maxHealth, int speed,int maxStamina, SDL_Color color):
-    x(x), y(y), rad(rad), health(maxHealth),maxHealth(maxHealth), speed(speed),stamina(maxStamina),maxStamina(maxStamina), color(color) {
+Entity::Entity(std::string name, int x, int y, int rad,int maxHealth, int speed,int maxStamina, SDL_Color color):
+    x(x), y(y), rad(rad), health(maxHealth),maxHealth(maxHealth), speed(speed),stamina(maxStamina),maxStamina(maxStamina), color(color), name(std::move(name)) {
     direction[0] = 0;
     direction[1] = 0;
 
@@ -23,6 +24,11 @@ void Entity::draw(SDL_Renderer* renderer) {
     int barHeight = 2 * rad;
     int offset = rad + 5;
 
+    //draw sight radius in white
+    circleRGBA(renderer, x, y, sightRadius, 255, 255, 255, 50);
+
+    // Pourcentages clampés
+    // Pourcentages
     float healthPercent = (float)health / (float)maxHealth;
     healthPercent = std::clamp(healthPercent, 0.0f, 1.0f);
 
@@ -116,6 +122,23 @@ void Entity::chooseDirection(int target[2]) {
         }
     }
 
+}
+
+void Entity::knockBack() {
+    // Reculer de 10 pixels dans la direction opposée
+    if (direction[0] == 0 && direction[1] == 0) {
+        return;
+    }
+
+    float distX = direction[0] - x;
+    float distY = direction[1] - y;
+    float distance = std::sqrt(distX * distX + distY * distY);
+
+    float normX = distX / distance;
+    float normY = distY / distance;
+
+    x -= static_cast<int>(normX * 50);
+    y -= static_cast<int>(normY * 50);
 }
 
 void Entity::attack(Entity &other) {

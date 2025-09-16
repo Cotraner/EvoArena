@@ -5,10 +5,10 @@
 
 int main() {
     Graphics graphics;
-    auto *e1 = new Entity(320, 240, 50, 100,5, 100 ,{255, 0, 0});
-    auto *e2 = new Entity(100, 100, 30, 100,5, 100,{0, 255, 0});
-    auto *e3 = new Entity(500, 400, 20, 100,5, 100,{0, 0, 255});
-    auto *e4 = new Entity(200, 300, 40, 100,5, 100,{255, 255, 0});
+    auto *e1 = new Entity("e1",320, 240, 50, 100,5, 100 ,{255, 0, 0});
+    auto *e2 = new Entity("e2",100, 100, 30, 100,5, 100,{0, 255, 0});
+    auto *e3 = new Entity("e3",500, 400, 20, 100,5, 100,{0, 0, 255});
+    auto *e4 = new Entity("e4",200, 300, 40, 100,5, 100,{255, 255, 0});
     std::vector<Entity> entities = {*e1, *e2, *e3, *e4};
 
     SDL_Event event;
@@ -32,18 +32,57 @@ int main() {
 
         //Mettre a jour les entités
         //Si elle sont trop proche elles s'attaquent
-        for(auto &entity : entities){
-            for(auto &other : entities){
-                if(&entity != &other){
+        for (auto &entity : entities) {
+            Entity* closestEnemy = nullptr;
+            int closestDistance = entity.getSightRadius();
+
+            for (auto &other : entities) {
+                if (&entity != &other) {
+                    // Calculer la distance entre les deux entités
                     int dx = entity.getX() - other.getX();
                     int dy = entity.getY() - other.getY();
                     int distance = std::sqrt(dx * dx + dy * dy);
-                    if(distance < entity.getSightRadius()){
-                        std::cout << "Entity attack" << std::endl;
-                        entity.chooseDirection();
-                        }
+
+                    // Vérifier si l'autre entité est dans le rayon de vision et plus proche
+                    if (distance < closestDistance) {
+                        closestDistance = distance;
+                        closestEnemy = &other;
+                    }
                 }
             }
+
+            // Si un ennemi le plus proche est trouvé, le cibler
+            if (closestEnemy) {
+                int target[2] = {closestEnemy->getX(), closestEnemy->getY()};
+                std::cout << entity.getName() << " targets " << closestEnemy->getName()
+                          << " at distance " << closestDistance << std::endl;
+                entity.chooseDirection(target);
+            }
+        }
+
+        for (auto &entity : entities) {
+            for (auto &other : entities) {
+                if (&entity != &other) {
+                    // Calculer la distance entre les deux entités
+                    int dx = entity.getX() - other.getX();
+                    int dy = entity.getY() - other.getY();
+                    int distance = std::sqrt(dx * dx + dy * dy);
+
+                    // Vérifier si les entités se chevauchent
+                    int minDistance = entity.getRad() + other.getRad();
+                    if (distance < minDistance) {
+                        // Calculer le vecteur de knockback
+                        float overlap = minDistance - distance;
+                        float normX = dx / (float)distance;
+                        float normY = dy / (float)distance;
+
+                        // Appliquer le knockback
+                        entity.setX(entity.getX() + static_cast<int>(normX * overlap));
+                        entity.setY(entity.getY() + static_cast<int>(normY * overlap));
+                    }
+                }
+            }
+            entity.update();
         }
 
 
@@ -83,7 +122,8 @@ int main() {
         );
         // Afficher le rendu
         SDL_RenderPresent(graphics.getRenderer());
-        SDL_Delay(32);
+
+        SDL_Delay(64);
     }
 
     return 0;
