@@ -83,7 +83,7 @@ int main() {
         );
         // Afficher le rendu
         SDL_RenderPresent(graphics.getRenderer());
-        SDL_Delay(16);
+        SDL_Delay(32);
     }
 
     return 0;

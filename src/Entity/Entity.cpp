@@ -15,57 +15,52 @@ Entity::~Entity() {
 }
 
 void Entity::draw(SDL_Renderer* renderer) {
-
+    // Draw the entity circle
     filledCircleRGBA(renderer, x, y, rad, color.r, color.g, color.b, 255);
 
-    // Dimensions des barres (liées à la taille de l'entité)
+    // Draw health and stamina bars (unchanged)
     int barWidth = 6;
-    int barHeight = 2 * rad; // barre = diamètre du cercle
+    int barHeight = 2 * rad;
     int offset = rad + 5;
 
-    // Pourcentages
     float healthPercent = (float)health / (float)maxHealth;
-    if (healthPercent < 0){
-        healthPercent = 0;
-    }
-    if (healthPercent > 1) {
-        healthPercent = 1;
-    }
+    healthPercent = std::clamp(healthPercent, 0.0f, 1.0f);
 
     float staminaPercent = (float)stamina / (float)maxStamina;
-    if (staminaPercent < 0){
-        staminaPercent = 0;
-    }
-    if (staminaPercent > 1){
-        staminaPercent = 1;
-    }
+    staminaPercent = std::clamp(staminaPercent, 0.0f, 1.0f);
 
-    // --- Barre de vie (rouge, gauche) ---
-    SDL_Rect healthBarBg = {x - offset - barWidth, y - barHeight/2, barWidth, barHeight};
-    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255); // fond gris
+    SDL_Rect healthBarBg = {x - offset - barWidth, y - barHeight / 2, barWidth, barHeight};
+    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
     SDL_RenderFillRect(renderer, &healthBarBg);
 
-    int healthFillHeight = (int)(barHeight * healthPercent + 0.5f);
+    int healthFillHeight = static_cast<int>(barHeight * healthPercent + 0.5f);
     if (healthFillHeight > 0) {
-        SDL_Rect healthBar = {x - offset - barWidth,y + barHeight/2 - healthFillHeight,barWidth,healthFillHeight};
+        SDL_Rect healthBar = {x - offset - barWidth, y + barHeight / 2 - healthFillHeight, barWidth, healthFillHeight};
         SDL_SetRenderDrawColor(renderer, 200, 0, 0, 255);
         SDL_RenderFillRect(renderer, &healthBar);
     }
 
-    // --- Barre d’endurance (bleue, droite) ---
-    SDL_Rect staminaBarBg = {x + offset, y - barHeight/2, barWidth, barHeight};
-    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255); // fond gris
+    SDL_Rect staminaBarBg = {x + offset, y - barHeight / 2, barWidth, barHeight};
+    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
     SDL_RenderFillRect(renderer, &staminaBarBg);
 
-    int staminaFillHeight = (int)(barHeight * staminaPercent + 0.5f);
+    int staminaFillHeight = static_cast<int>(barHeight * staminaPercent + 0.5f);
     if (staminaFillHeight > 0) {
-        SDL_Rect staminaBar = {x + offset,y + barHeight/2 - staminaFillHeight,barWidth,staminaFillHeight};
+        SDL_Rect staminaBar = {x + offset, y + barHeight / 2 - staminaFillHeight, barWidth, staminaFillHeight};
         SDL_SetRenderDrawColor(renderer, 0, 0, 200, 255);
         SDL_RenderFillRect(renderer, &staminaBar);
     }
+
+    // Draw health value as text inside the entity
+    std::string healthText = std::to_string(health);
+    stringRGBA(renderer, x - 10, y - 5, healthText.c_str(), 0, 0, 0, 255);
 }
 
 void Entity::update() {
+    if (health <= 0 && isAlive) {
+        die();
+        return;
+    }
     if (direction[0] == 0 && direction[1] == 0) {
         chooseDirection();
         return ;
