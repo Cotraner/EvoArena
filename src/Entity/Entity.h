@@ -27,6 +27,8 @@ public:
     void setHealth(int h) { health = h; }
     int getStamina() const { return stamina; }
     void setStamina(int s) { stamina = s; }
+    int getMaxHealth() const { return maxHealth; }
+    int getMaxStamina() const { return maxStamina; }
 
 
 
@@ -38,6 +40,8 @@ private:
     int direction[2];
     int sightRadius = 50;
     int stamina;
+    int maxHealth;
+    static const int maxStamina = 100;
     SDL_Color color;
 
 };
