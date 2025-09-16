@@ -93,7 +93,33 @@ int main() {
             entity.draw(graphics.getRenderer());
         }
 
+        // Mettre à jour les entités et gérer les attaques
+        for (auto &entity : entities) {
+            for (auto &other : entities) {
+                if (&entity != &other) {
+                    int dx = entity.getX() - other.getX();
+                    int dy = entity.getY() - other.getY();
+                    int distance = std::sqrt(dx * dx + dy * dy);
 
+                    if (distance < entity.getSightRadius()) {
+                        std::cout << "Entities are attacking each other!" << std::endl;
+                        entity.attack(other);
+                        if (entity.getHealth() <= 0 && entity.getIsAlive()) {
+                            entity.die();
+                        }
+                        entity.chooseDirection();
+                    }
+                }
+            }
+        }
+
+        // Supprimer les entités mortes
+        entities.erase(
+                std::remove_if(entities.begin(), entities.end(), [](const Entity &entity) {
+                    return !entity.getIsAlive();
+                }),
+                entities.end()
+        );
         // Afficher le rendu
         SDL_RenderPresent(graphics.getRenderer());
 

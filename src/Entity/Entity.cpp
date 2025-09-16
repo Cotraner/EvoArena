@@ -18,8 +18,7 @@ Entity::~Entity() {
 void Entity::draw(SDL_Renderer* renderer) {
 
     filledCircleRGBA(renderer, x, y, rad, color.r, color.g, color.b, 255);
-    // Dessiner un contour noir autour
-    circleRGBA(renderer, x, y, rad, 0, 0, 0, 255);
+
     // Dimensions des barres (liées à la taille de l'entité)
     int barWidth = 6;
     int barHeight = 2 * rad; // barre = diamètre du cercle
@@ -29,13 +28,22 @@ void Entity::draw(SDL_Renderer* renderer) {
     circleRGBA(renderer, x, y, sightRadius, 255, 255, 255, 50);
 
     // Pourcentages clampés
+    // Pourcentages
     float healthPercent = (float)health / (float)maxHealth;
-    if (healthPercent < 0) healthPercent = 0;
-    if (healthPercent > 1) healthPercent = 1;
+    if (healthPercent < 0){
+        healthPercent = 0;
+    }
+    if (healthPercent > 1) {
+        healthPercent = 1;
+    }
 
     float staminaPercent = (float)stamina / (float)maxStamina;
-    if (staminaPercent < 0) staminaPercent = 0;
-    if (staminaPercent > 1) staminaPercent = 1;
+    if (staminaPercent < 0){
+        staminaPercent = 0;
+    }
+    if (staminaPercent > 1){
+        staminaPercent = 1;
+    }
 
     // --- Barre de vie (rouge, gauche) ---
     SDL_Rect healthBarBg = {x - offset - barWidth, y - barHeight/2, barWidth, barHeight};
@@ -44,12 +52,7 @@ void Entity::draw(SDL_Renderer* renderer) {
 
     int healthFillHeight = (int)(barHeight * healthPercent + 0.5f);
     if (healthFillHeight > 0) {
-        SDL_Rect healthBar = {
-                x - offset - barWidth,
-                y + barHeight/2 - healthFillHeight,
-                barWidth,
-                healthFillHeight
-        };
+        SDL_Rect healthBar = {x - offset - barWidth,y + barHeight/2 - healthFillHeight,barWidth,healthFillHeight};
         SDL_SetRenderDrawColor(renderer, 200, 0, 0, 255);
         SDL_RenderFillRect(renderer, &healthBar);
     }
@@ -61,12 +64,7 @@ void Entity::draw(SDL_Renderer* renderer) {
 
     int staminaFillHeight = (int)(barHeight * staminaPercent + 0.5f);
     if (staminaFillHeight > 0) {
-        SDL_Rect staminaBar = {
-                x + offset,
-                y + barHeight/2 - staminaFillHeight,
-                barWidth,
-                staminaFillHeight
-        };
+        SDL_Rect staminaBar = {x + offset,y + barHeight/2 - staminaFillHeight,barWidth,staminaFillHeight};
         SDL_SetRenderDrawColor(renderer, 0, 0, 200, 255);
         SDL_RenderFillRect(renderer, &staminaBar);
     }
@@ -145,6 +143,42 @@ void Entity::knockBack() {
 
     x -= static_cast<int>(normX * 50);
     y -= static_cast<int>(normY * 50);
+}
+
+void Entity::attack(Entity &other) {
+    // Vérifie si l'entité attaquante est vivante
+    if (!isAlive) {
+        std::cout << "Dead entities cannot attack!" << std::endl;
+        return;
+    }
+
+    // Vérifie si la cible est vivante
+    if (!other.isAlive) {
+        std::cout << "Cannot attack a dead entity!" << std::endl;
+        return;
+    }
+
+    int damage = 10; // Dégâts infligés
+    int staminaCost = 5; // Coût en endurance
+
+    // Réduction de la santé et de l'endurance des deux entités
+    this->health -= damage;
+    this->stamina -= staminaCost;
+
+    other.health -= damage;
+    other.stamina -= staminaCost;
+
+    // Empêcher les valeurs négatives
+    if (this->health < 0) this->health = 0;
+    if (this->stamina < 0) this->stamina = 0;
+
+    if (other.health < 0) other.health = 0;
+    if (other.stamina < 0) other.stamina = 0;
+}
+
+void Entity::die() {
+    isAlive = false;
+    this->color = {100,100,100,255};
 }
 
 

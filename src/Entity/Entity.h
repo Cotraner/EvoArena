@@ -6,6 +6,7 @@
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include <SDL2/SDL_image.h>
 #include "constants.h"
+#include <algorithm>
 
 class Entity {
 public:
@@ -19,6 +20,8 @@ public:
 
     void setX(int newX) { x = newX; }
     void setY(int newY) { y = newY; }
+    void attack(Entity &other);
+    void die();
 
     int getX() const { return x; }
     int getY() const { return y; }
@@ -35,6 +38,7 @@ public:
     void setStamina(int s) { stamina = s; }
     int getMaxHealth() const { return maxHealth; }
     int getMaxStamina() { return maxStamina; }
+    bool getIsAlive() const { return isAlive; }
 
 
 
@@ -50,6 +54,7 @@ private:
     int stamina;
     int maxHealth;
     int maxStamina;
+    bool isAlive = true;
     SDL_Color color;
 
 };
