@@ -95,10 +95,12 @@ void Entity::update() {
 
 
 void Entity::chooseDirection(int target[2]) {
+    //Un ennemi a été détecté
     if(target != nullptr){
-
-
+        direction[0] = target[0];
+        direction[1] = target[1];
     }
+    //Aucun ennemi détécté, choisi une direction aléatoire
     else{
         bool validDirection = false;
 

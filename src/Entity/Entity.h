@@ -29,7 +29,8 @@ public:
     int getStamina() const { return stamina; }
     void setStamina(int s) { stamina = s; }
     int getMaxHealth() const { return maxHealth; }
-    int getMaxStamina() const { return maxStamina; }
+    static int getMaxStamina() { return maxStamina; }
+
 
 
 
