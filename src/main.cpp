@@ -101,7 +101,7 @@ int main() {
                     int dy = entity.getY() - other.getY();
                     int distance = std::sqrt(dx * dx + dy * dy);
 
-                    if (distance < entity.getSightRadius()) {
+                    if (distance < entity.getRad() + other.getRad()) {
                         std::cout << "Entities are attacking each other!" << std::endl;
                         entity.attack(other);
                         if (entity.getHealth() <= 0 && entity.getIsAlive()) {
