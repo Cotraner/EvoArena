@@ -119,7 +119,7 @@ void Entity::chooseDirection(int target[2]) {
             direction[1] = y + static_cast<int>(radius * sin(angle));
 
             //Vérifie si la direction est valide et ne sort pas de l'écran
-            if(direction[0] > rad && direction[0] < 640 - rad && direction[1] > rad && direction[1] < 480 - rad){
+            if(direction[0] > rad && direction[0] < WINDOW_SIZE_WIDTH - rad && direction[1] > rad && direction[1] < WINDOW_SIZE_HEIGHT  - rad){
                 validDirection = true;
             }
         }

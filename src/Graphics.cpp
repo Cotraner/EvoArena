@@ -2,7 +2,7 @@
 
 
 Graphics::Graphics(){
-    SDL_CreateWindowAndRenderer(640, 480, 0, &window, &renderer);
+    SDL_CreateWindowAndRenderer(WINDOW_SIZE_WIDTH, WINDOW_SIZE_HEIGHT, 0, &window, &renderer);
     SDL_SetWindowTitle(window, "EvoArena");
 
     //Fond vert

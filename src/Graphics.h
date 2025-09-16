@@ -6,6 +6,7 @@
 #include <SDL2/SDL2_gfxPrimitives.h>
 
 #include "Entity/Entity.h"
+#include "constants.h"
 
 class Graphics {
 public:
