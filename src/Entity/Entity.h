@@ -9,7 +9,7 @@
 
 class Entity {
 public:
-    Entity(int x, int y, int rad, int health, int speed, int stamina, SDL_Color color);
+    Entity(int x, int y, int rad,int maxHealth, int speed, int maxStamina, SDL_Color color);
     ~Entity();
 
     void update();
@@ -42,7 +42,7 @@ private:
     int sightRadius = 50;
     int stamina;
     int maxHealth;
-    static const int maxStamina = 100;
+    int maxStamina;
     SDL_Color color;
 
 };

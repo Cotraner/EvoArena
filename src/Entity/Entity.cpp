@@ -3,10 +3,11 @@
 #include "Entity.h"
 
 
-Entity::Entity(int x, int y, int rad, int health, int speed,int stamina, SDL_Color color):
-    x(x), y(y), rad(rad), health(health), speed(speed), color(color) {
+Entity::Entity(int x, int y, int rad,int maxHealth, int speed,int maxStamina, SDL_Color color):
+    x(x), y(y), rad(rad), health(maxHealth),maxHealth(maxHealth), speed(speed),stamina(maxStamina),maxStamina(maxStamina), color(color) {
     direction[0] = 0;
     direction[1] = 0;
+
 }
 
 Entity::~Entity() {
@@ -20,10 +21,10 @@ void Entity::draw(SDL_Renderer* renderer) {
     circleRGBA(renderer, x, y, rad, 0, 0, 0, 255);
     // Dimensions des barres (liées à la taille de l'entité)
     int barWidth = 6;
-    int barHeight = 2 * rad;
+    int barHeight = 2 * rad; // barre = diamètre du cercle
     int offset = rad + 5;
 
-    // Pourcentages clampés entre 0 et 1
+    // Pourcentages clampés
     float healthPercent = (float)health / (float)maxHealth;
     if (healthPercent < 0) healthPercent = 0;
     if (healthPercent > 1) healthPercent = 1;
@@ -34,8 +35,10 @@ void Entity::draw(SDL_Renderer* renderer) {
 
     // --- Barre de vie (rouge, gauche) ---
     SDL_Rect healthBarBg = {x - offset - barWidth, y - barHeight/2, barWidth, barHeight};
+    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255); // fond gris
+    SDL_RenderFillRect(renderer, &healthBarBg);
 
-    int healthFillHeight = (int)(barHeight * healthPercent + 0.5f); // arrondi
+    int healthFillHeight = (int)(barHeight * healthPercent + 0.5f);
     if (healthFillHeight > 0) {
         SDL_Rect healthBar = {
                 x - offset - barWidth,
@@ -43,16 +46,14 @@ void Entity::draw(SDL_Renderer* renderer) {
                 barWidth,
                 healthFillHeight
         };
-
         SDL_SetRenderDrawColor(renderer, 200, 0, 0, 255);
         SDL_RenderFillRect(renderer, &healthBar);
     }
 
-    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
-    SDL_RenderDrawRect(renderer, &healthBarBg); // contour au lieu de fond plein
-
     // --- Barre d’endurance (bleue, droite) ---
     SDL_Rect staminaBarBg = {x + offset, y - barHeight/2, barWidth, barHeight};
+    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255); // fond gris
+    SDL_RenderFillRect(renderer, &staminaBarBg);
 
     int staminaFillHeight = (int)(barHeight * staminaPercent + 0.5f);
     if (staminaFillHeight > 0) {
@@ -62,13 +63,9 @@ void Entity::draw(SDL_Renderer* renderer) {
                 barWidth,
                 staminaFillHeight
         };
-
         SDL_SetRenderDrawColor(renderer, 0, 0, 200, 255);
         SDL_RenderFillRect(renderer, &staminaBar);
     }
-
-    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
-    SDL_RenderDrawRect(renderer, &staminaBarBg);
 }
 
 void Entity::update() {

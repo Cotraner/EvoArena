@@ -5,10 +5,10 @@
 
 int main() {
     Graphics graphics;
-    auto *e1 = new Entity(320, 240, 50, 100, 5,5, {255, 0, 0});
-    auto *e2 = new Entity(100, 100, 30, 100, 5,5, {0, 255, 0});
-    auto *e3 = new Entity(500, 400, 20, 100, 5,5, {0, 0, 255});
-    auto *e4 = new Entity(200, 300, 40, 100, 5,5, {255, 255, 0});
+    auto *e1 = new Entity(320, 240, 50, 100,5, 100 ,{255, 0, 0});
+    auto *e2 = new Entity(100, 100, 30, 100,5, 100,{0, 255, 0});
+    auto *e3 = new Entity(500, 400, 20, 100,5, 100,{0, 0, 255});
+    auto *e4 = new Entity(200, 300, 40, 100,5, 100,{255, 255, 0});
     std::vector<Entity> entities = {*e1, *e2, *e3, *e4};
 
     SDL_Event event;
@@ -18,6 +18,9 @@ int main() {
         // Gestion des événements
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
+                running = false;
+            }
+            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) {
                 running = false;
             }
         }
