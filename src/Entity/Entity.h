@@ -9,12 +9,16 @@
 
 class Entity {
 public:
-    Entity(int x, int y, int rad,int maxHealth, int speed, int maxStamina, SDL_Color color);
+    Entity(std::string name,int x, int y, int rad,int maxHealth, int speed, int maxStamina, SDL_Color color);
     ~Entity();
 
     void update();
     void draw(SDL_Renderer* renderer);
     void chooseDirection(int target[2] = nullptr);
+    void knockBack();
+
+    void setX(int newX) { x = newX; }
+    void setY(int newY) { y = newY; }
 
     int getX() const { return x; }
     int getY() const { return y; }
@@ -22,6 +26,7 @@ public:
     int getDirectionX() const { return direction[0]; }
     int getDirectionY() const { return direction[1]; }
     int getSightRadius() const { return sightRadius; }
+    [[nodiscard]] std::string getName() const { return name; }
 
 
     int getHealth() const { return health; }
@@ -29,18 +34,19 @@ public:
     int getStamina() const { return stamina; }
     void setStamina(int s) { stamina = s; }
     int getMaxHealth() const { return maxHealth; }
-    static int getMaxStamina() { return maxStamina; }
+    int getMaxStamina() { return maxStamina; }
 
 
 
 
 private:
+    std::string name;
     int x,y;
     int rad;
     int health;
     int speed;
-    int direction[2];
-    int sightRadius = 50;
+    int direction[2]{};
+    int sightRadius = 150;
     int stamina;
     int maxHealth;
     int maxStamina;
