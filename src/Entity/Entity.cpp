@@ -11,9 +11,11 @@ Entity::Entity(std::string name, int x, int y, int rad,int maxHealth, int speed,
 
 }
 
+
 Entity::~Entity() {
 
 }
+
 
 void Entity::draw(SDL_Renderer* renderer) {
     // Draw the entity circle
@@ -147,7 +149,6 @@ void Entity::attack(Entity &other) {
         std::cout << "Dead entities cannot attack!" << std::endl;
         return;
     }
-
     // Vérifie si la cible est vivante
     if (!other.isAlive) {
         std::cout << "Cannot attack a dead entity!" << std::endl;
