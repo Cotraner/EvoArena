@@ -1,6 +1,5 @@
 #include "Menu.h"
 #include <iostream>
-#include <sstream>
 #include <SDL2/SDL_ttf.h>
 #include <algorithm> // Pour std::clamp
 
