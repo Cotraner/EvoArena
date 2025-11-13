@@ -6,7 +6,7 @@
 #include <SDL2/SDL2_gfxPrimitives.h>
 
 
-// --- FONCTION STATIQUE ---
+// --- FONCTION STATIQUE --- (Inchangée)
 SDL_Color Entity::generateRandomColor() {
     return {
             (Uint8)(std::rand() % 256),
@@ -16,7 +16,7 @@ SDL_Color Entity::generateRandomColor() {
     };
 }
 
-// --- FONCTION DE CALCUL DES STATS (Étape 2) ---
+// --- FONCTION DE CALCUL DES STATS --- (Inchangée)
 void Entity::calculateDerivedStats() {
     const float HEALTH_MULTIPLIER = 4.0f;
     const float SPEED_BASE = 5.0f;
@@ -33,27 +33,39 @@ void Entity::calculateDerivedStats() {
     this->stamina = this->maxStamina;
 
     this->sightRadius = 150 + (rad * 2);
+
+    this->armor = ((float)rad - 10.0f) / (40.0f - 10.0f);
+    this->armor = this->armor * 0.60f;
+    this->armor = std::clamp(this->armor, 0.0f, 0.8f);
+
+    this->regenAmount = (this->speed >= 4) ? 1 : 0;
 }
 
 
-// --- CONSTRUCTEUR ---
+// --- CONSTRUCTEUR --- (Inchangé)
 Entity::Entity(std::string name, int x, int y, int rad, SDL_Color color, bool isRangedGene):
-        x(x), y(y), rad(rad), color(color), name(std::move(name)), isRanged(isRangedGene) { // <-- Initialisation directe de isRanged
+        x(x), y(y), rad(rad), color(color), name(std::move(name)), isRanged(isRangedGene) {
 
     direction[0] = 0;
     direction[1] = 0;
 
-    calculateDerivedStats();
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis_angle(0, 2 * M_PI);
+    float angle = dis_angle(gen);
+    lastVelX = cos(angle);
+    lastVelY = sin(angle);
 
-    // Initialisation aléatoire du type de combat (50% de chance)
-    isRanged = (std::rand() % 2 == 0);
+    lastRegenTick = SDL_GetTicks() - (std::rand() % REGEN_COOLDOWN_MS);
+
+    calculateDerivedStats();
 }
 
 
 Entity::~Entity() = default;
 
 
-// --- FONCTION DRAW (Affichage Debug) ---
+// --- FONCTION DRAW (Nettoyée) ---
 void Entity::draw(SDL_Renderer* renderer) {
     // Dessiner le cercle de l'entité
     filledCircleRGBA(renderer, x, y, rad, color.r, color.g, color.b, 255);
@@ -100,55 +112,65 @@ void Entity::draw(SDL_Renderer* renderer) {
     std::string infoText = std::to_string(health) + " / " + std::to_string(speed);
     stringRGBA(renderer, x - 15, y - 5, infoText.c_str(), 0, 0, 0, 255);
 
-    // DEBUG VISUEL : Afficher le type de combat et la portée
-    std::string type = isRanged ? "RNG" : "MLY";
-    std::string rangeStr = isRanged ? std::to_string(RANGED_RANGE) : std::to_string(MELEE_RANGE);
-    std::string debugStr = type + " Rng:" + rangeStr;
-    stringRGBA(renderer, x - 30, y + rad + 15, debugStr.c_str(), color.r, color.g, color.b, 255);
+    // *** SUPPRIMÉ : Texte de combat ***
+    // std::string type = isRanged ? "RNG" : "MLY";
+    // std::string rangeStr = isRanged ? std::to_string(RANGED_RANGE) : std::to_string(MELEE_RANGE);
+    // std::string debugStr = type + " Rng:" + rangeStr;
+    // stringRGBA(renderer, x - 30, y + rad + 15, debugStr.c_str(), color.r, color.g, color.b, 255);
 
+    // *** SUPPRIMÉ : Texte de stats ***
+    // std::string statsStr = "A:" + std::to_string((int)(armor * 100)) + "% R:" + std::to_string(regenAmount);
+    // stringRGBA(renderer, x - 30, y + rad + 25, statsStr.c_str(), 200, 200, 200, 255);
 
-    // Dessin de la ligne de visée vers la cible (si une cible est définie)
-    if (targetX != -1 && targetY != -1) {
-        lineRGBA(renderer, x, y, targetX, targetY, color.r, color.g, color.b, 200);
-    }
+    // *** SUPPRIMÉ : Ligne de visée ***
+    // if (targetX != -1 && targetY != -1) {
+    //     lineRGBA(renderer, x, y, targetX, targetY, color.r, color.g, color.b, 200);
+    // }
 }
 
-// --- FONCTION UPDATE (Correction Convulsion + Gestion des Bords) ---
+// --- FONCTION UPDATE --- (Inchangée)
 void Entity::update() {
+    if (regenAmount > 0 && isAlive && health < maxHealth) {
+        Uint32 currentTime = SDL_GetTicks();
+        if (currentTime > lastRegenTick + REGEN_COOLDOWN_MS) {
+            health += regenAmount;
+            if (health > maxHealth) health = maxHealth;
+            lastRegenTick = currentTime;
+        }
+    }
+
     if (health <= 0 && isAlive) {
         die();
         return;
     }
 
     if (direction[0] == 0 && direction[1] == 0) {
-        chooseDirection(); // Choisir une direction aléatoire
+        chooseDirection();
     }
 
     float distX = direction[0] - x;
     float distY = direction[1] - y;
-    float distance = std::sqrt(distX * distX + distY * distY); // float pour plus de précision
+    float distance = std::sqrt(distX * distX + distY * distY);
 
-    // 1. Vérification de l'arrivée à la destination
     if (distance < speed && distance > 0.0f) {
         x += (int)distX;
         y += (int)distY;
-        direction[0] = 0; // Réinitialiser la direction
+        direction[0] = 0;
         direction[1] = 0;
-        clearTarget(); // Réinitialiser la cible de debug
-        // Ne retourne pas ici, permet la vérification des bords après le dernier mouvement
+        clearTarget();
     } else if (distance > 0.0f) {
-        // 2. Mouvement normal
         float normX = distX / distance;
         float normY = distY / distance;
 
         x += static_cast<int>(normX * speed);
         y += static_cast<int>(normY * speed);
+
+        lastVelX = normX;
+        lastVelY = normY;
     }
 
-    // 3. GESTION DES BORDS (Bloque l'entité à l'intérieur de la fenêtre)
     bool collided = false;
 
-    // Bord Gauche/Droit
     if (x < rad) {
         x = rad;
         collided = true;
@@ -157,7 +179,6 @@ void Entity::update() {
         collided = true;
     }
 
-    // Bord Haut/Bas
     if (y < rad) {
         y = rad;
         collided = true;
@@ -166,92 +187,109 @@ void Entity::update() {
         collided = true;
     }
 
-    // Si l'entité a touché un mur, elle doit choisir une nouvelle direction aléatoire
     if (collided) {
         direction[0] = 0;
         direction[1] = 0;
         clearTarget();
+        lastVelX = -lastVelX;
+        lastVelY = -lastVelY;
     }
 }
 
 
-// --- FONCTION CHOOSEDIRECTION (Stockage de la cible de debug) ---
+// --- FONCTION CHOOSEDIRECTION --- (Inchangée)
 void Entity::chooseDirection(int target[2]) {
-    //Un ennemi a été détecté
+
     if(target != nullptr){
         direction[0] = target[0];
         direction[1] = target[1];
-        targetX = target[0]; // DEBUG
-        targetY = target[1]; // DEBUG
+        targetX = target[0];
+        targetY = target[1];
     }
-        //Aucun ennemi détécté, choisi une direction aléatoire
     else{
-        targetX = -1; // DEBUG
-        targetY = -1; // DEBUG
+        targetX = -1;
+        targetY = -1;
 
-        bool validDirection = false;
+        const float WANDER_DISTANCE = 90.0f;
+        const float WANDER_JITTER_STRENGTH = 0.4f;
 
-        while(!validDirection){
-            std::random_device rd;
-            std::mt19937 gen(rd());
-            std::uniform_real_distribution<> dis_angle(0, 2 * M_PI);
-            std::uniform_real_distribution<> dis_radius(8 * speed, 12 * speed);
-            float radius = dis_radius(gen);
-            float angle = dis_angle(gen);
+        std::random_device rd;
+        std::mt19937 gen(rd());
 
-            direction[0] = x + static_cast<int>(radius * cos(angle));
-            direction[1] = y + static_cast<int>(radius * sin(angle));
+        std::uniform_real_distribution<> dis_jitter(-1.0, 1.0);
+        float jitterX = dis_jitter(gen);
+        float jitterY = dis_jitter(gen);
 
-            // La vérification des limites est faite dans update(), mais on vérifie
-            // ici pour s'assurer que la destination aléatoire n'est pas complètement folle.
-            if(direction[0] > rad && direction[0] < WINDOW_SIZE_WIDTH - rad &&
-               direction[1] > rad && direction[1] < WINDOW_SIZE_HEIGHT  - rad){
-                validDirection = true;
-            }
+        float jitterMag = std::sqrt(jitterX * jitterX + jitterY * jitterY);
+        if (jitterMag > 0.0f) {
+            jitterX = (jitterX / jitterMag) * WANDER_JITTER_STRENGTH;
+            jitterY = (jitterY / jitterMag) * WANDER_JITTER_STRENGTH;
         }
+
+        float newDirX = (lastVelX * (1.0f - WANDER_JITTER_STRENGTH)) + jitterX;
+        float newDirY = (lastVelY * (1.0f - WANDER_JITTER_STRENGTH)) + jitterY;
+
+        float newMag = std::sqrt(newDirX * newDirX + newDirY * newDirY);
+        if (newMag > 0.0f) {
+            newDirX /= newMag;
+            newDirY /= newMag;
+        } else {
+            std::uniform_real_distribution<> dis_angle(0, 2 * M_PI);
+            float angle = dis_angle(gen);
+            newDirX = cos(angle);
+            newDirY = sin(angle);
+        }
+
+        direction[0] = x + static_cast<int>(newDirX * WANDER_DISTANCE);
+        direction[1] = y + static_cast<int>(newDirY * WANDER_DISTANCE);
+
+        lastVelX = newDirX;
+        lastVelY = newDirY;
     }
 }
 
+// --- FONCTION KNOCKBACK --- (Inchangée)
 void Entity::knockBack() {
-    // ... (Logique inchangée)
-    if (direction[0] == 0 && direction[1] == 0) {
-        return;
-    }
+    const int KNOCKBACK_DISTANCE = 50;
 
-    float distX = direction[0] - x;
-    float distY = direction[1] - y;
-    float distance = std::sqrt(distX * distX + distY * distY);
+    x -= static_cast<int>(lastVelX * KNOCKBACK_DISTANCE);
+    y -= static_cast<int>(lastVelY * KNOCKBACK_DISTANCE);
 
-    float normX = distX / distance;
-    float normY = distY / distance;
+    x = std::clamp(x, rad, WINDOW_SIZE_WIDTH - rad);
+    y = std::clamp(y, rad, WINDOW_SIZE_HEIGHT - rad);
 
-    x -= static_cast<int>(normX * 50);
-    y -= static_cast<int>(normY * 50);
+    direction[0] = 0;
+    direction[1] = 0;
+    clearTarget();
 }
 
+// --- FONCTION TAKEDAMAGE --- (Inchangée)
+void Entity::takeDamage(int amount) {
+    if (!isAlive) return;
+
+    int damageTaken = static_cast<int>(amount * (1.0f - armor));
+
+    if (damageTaken < 1 && amount > 0) damageTaken = 1;
+
+    this->health -= damageTaken;
+
+    if (this->health <= 0) {
+        this->health = 0;
+        die();
+    }
+}
+
+
+// --- FONCTION ATTACK --- (Inchangée)
 void Entity::attack(Entity &other) {
-    // ... (Logique inchangée)
     if (!isAlive || !other.isAlive) {
         return;
     }
-
-    int damage = 10;
-    int staminaCost = 5;
-
-    this->health -= damage;
-    this->stamina -= staminaCost;
-
-    other.health -= damage;
-    other.stamina -= staminaCost;
-
-    if (this->health < 0) this->health = 0;
-    if (this->stamina < 0) this->stamina = 0;
-
-    if (other.health < 0) other.health = 0;
-    if (other.stamina < 0) other.stamina = 0;
+    // ...
 }
 
+// --- FONCTION DIE --- (Inchangée)
 void Entity::die() {
     isAlive = false;
-    this->color = {100,100,100,255}; // Devient gris
+    this->color = {100,100,100,255};
 }

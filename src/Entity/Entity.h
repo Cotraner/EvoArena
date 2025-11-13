@@ -28,20 +28,22 @@ public:
 
     void setX(int newX) { x = newX; }
     void setY(int newY) { y = newY; }
-    void attack(Entity &other);
+    void attack(Entity &other); // Note: Cette fonction est toujours inutilisée
     void die();
+
+    // *** NOUVEAU : Fonction centralisée pour prendre des dégâts ***
+    void takeDamage(int amount);
+
 
     int getX() const { return x; }
     int getY() const { return y; }
     int getRad() const { return rad; }
-    int getDirectionX() const { return direction[0]; }
-    int getDirectionY() const { return direction[1]; }
     int getSightRadius() const { return sightRadius; }
     [[nodiscard]] std::string getName() const { return name; }
     SDL_Color getColor() const { return color; }
 
     int getHealth() const { return health; }
-    void setHealth(int h) { health = h; }
+    void setHealth(int h) { health = h; } // Toujours utile pour le debug ou des soins
     int getStamina() const { return stamina; }
     void setStamina(int s) { stamina = s; }
     int getMaxHealth() const { return maxHealth; }
@@ -77,9 +79,13 @@ private:
     static constexpr int MELEE_RANGE = 70;
     static constexpr Uint32 MELEE_COOLDOWN_MS = 200;
 
+    // *** NOUVEAU : Constante pour la régénération ***
+    static constexpr Uint32 REGEN_COOLDOWN_MS = 2000; // 2 secondes
+
+
     std::string name;
     int x,y;
-    int rad;
+    int rad; // Gène principal
     int health;
     int speed;
     int direction[2]{};
@@ -96,6 +102,15 @@ private:
     // DEBUG VISUEL
     int targetX = -1;
     int targetY = -1;
+
+    // Mémorise la direction pour l'errance naturelle
+    float lastVelX = 1.0f;
+    float lastVelY = 0.0f;
+
+    // *** NOUVEAU : Stats dérivées (Étape 2) ***
+    float armor = 0.0f; // Réduction des dégâts (0.0 = 0%, 1.0 = 100%)
+    int regenAmount = 0; // PV soignés par tick
+    Uint32 lastRegenTick = 0; // Timer pour la régénération
 };
 
 

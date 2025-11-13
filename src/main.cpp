@@ -22,7 +22,7 @@ int main() {
 
     // --- GENERATION ALÉATOIRE ET GARANTIE DE DIVERSITÉ (Étape 2) ---
     const int NUM_ENTITIES = 15;
-    const int RANGED_COUNT = 5; // Assurons-nous d'avoir au moins 5 entités Ranged
+    const int RANGED_COUNT = 5;
 
     std::srand(std::time(0));
 
@@ -36,12 +36,11 @@ int main() {
 
         bool isRangedGene;
         if (i < RANGED_COUNT) {
-            isRangedGene = true; // Force les RANGED (garantit la présence)
+            isRangedGene = true;
         } else {
-            isRangedGene = (std::rand() % 2 == 0); // Le reste est aléatoire
+            isRangedGene = (std::rand() % 2 == 0);
         }
 
-        // Utilisation du nouveau constructeur (nécessite la mise à jour de Entity.h/cpp)
         entities.emplace_back(name, randomX, randomY, randomRad, color, isRangedGene);
     }
 
@@ -53,7 +52,7 @@ int main() {
     bool running = true;
 
     while (running) {
-        // Gestion des événements
+
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT || (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) {
                 running = false;
@@ -95,22 +94,52 @@ int main() {
                 int damage = isRanged ? entity.getRangedDamage() : entity.getMeleeDamage();
 
 
-                // A. Mouvement
+                // *** SECTION A. MOUVEMENT (MODIFIÉE POUR LE TIR EN ERRANCE) ***
                 int target[2] = {closestEnemy->getX(), closestEnemy->getY()};
 
                 if (closestDistance < entity.getSightRadius()){
 
-                    // Logique d'ARRÊT pour les Melee
-                    if (!isRanged && closestDistance < attackRange) {
-                        // Forcer l'arrêt : cibler sa propre position (x, y)
-                        int stopTarget[2] = {entity.getX(), entity.getY()};
-                        entity.chooseDirection(stopTarget);
+                    // --- NOUVELLE LOGIQUE DE KITING ---
+
+                    if (isRanged) {
+                        // *** COMPORTEMENT RANGED ***
+                        const int kiteDistance = attackRange / 3; // Définir la distance de fuite
+
+                        if (closestDistance < kiteDistance) {
+                            // 1. Trop près -> FUIR
+                            int fleeTarget[2] = {
+                                    entity.getX() + (entity.getX() - closestEnemy->getX()),
+                                    entity.getY() + (entity.getY() - closestEnemy->getY())
+                            };
+                            entity.chooseDirection(fleeTarget);
+                        }
+                        else if (closestDistance < attackRange) {
+                            // 2. Distance idéale -> BOUGER EN ERRANT (WANDER)
+                            // (Au lieu de s'arrêter net)
+                            entity.chooseDirection(nullptr);
+                        }
+                        else {
+                            // 3. En vue, mais hors de portée -> AVANCER
+                            entity.chooseDirection(target);
+                        }
+
                     } else {
-                        entity.chooseDirection(target); // Avancer
+                        // *** COMPORTEMENT MELEE (Inchangé) ***
+                        if (closestDistance < attackRange) {
+                            // 1. À portée -> S'ARRÊTER ET FRAPPER
+                            int stopTarget[2] = {entity.getX(), entity.getY()};
+                            entity.chooseDirection(stopTarget);
+                        } else {
+                            // 2. Hors de portée -> AVANCER
+                            entity.chooseDirection(target);
+                        }
                     }
+
                 } else {
-                    entity.chooseDirection(nullptr); // Mouvement aléatoire
+                    // Ennemi hors de vue -> Mouvement aléatoire
+                    entity.chooseDirection(nullptr);
                 }
+
 
                 // B. TIR/ATTAQUE : Si dans la portée de combat spécifique au type
                 if (closestDistance < attackRange) {
@@ -128,16 +157,13 @@ int main() {
                                     damage,
                                     attackRange,
                                     entity.getColor(),
-                                    PROJECTILE_RADIUS
+                                    PROJECTILE_RADIUS,
+                                    entity.getName()
                             );
                             projectiles.push_back(newP);
                         } else {
                             // --- COMBAT CORPS A CORPS (Coup direct) ---
-                            // L'entité cible est immédiatement blessée
-                            closestEnemy->setHealth(closestEnemy->getHealth() - damage);
-                            if (closestEnemy->getHealth() <= 0 && closestEnemy->getIsAlive()) {
-                                closestEnemy->die();
-                            }
+                            closestEnemy->takeDamage(damage);
                         }
 
                         lastShotTime[entity.getName()] = currentTime;
@@ -149,20 +175,15 @@ int main() {
             }
         }
 
-        // 2. MOUVEMENT et CORRECTION DES COLLISIONS
-
-        // Appliquer le déplacement calculé
+        // 2. MOUVEMENT et CORRECTION DES COLLISIONS (Inchangé)
         for (auto &entity : entities) {
             entity.update();
         }
-
-        // Correction des Collisions : Empêcher le chevauchement après le mouvement
         for (auto &entity : entities) {
             for (auto &other : entities) {
                 if (&entity != &other && other.getIsAlive()) {
                     int dx = entity.getX() - other.getX();
                     int dy = entity.getY() - other.getY();
-
                     float distance = std::sqrt((float)dx * dx + (float)dy * dy);
                     int minDistance = entity.getRad() + other.getRad();
 
@@ -170,10 +191,8 @@ int main() {
                         float overlap = minDistance - distance;
                         float separationFactor = 0.5f;
                         float separationDistance = overlap * separationFactor;
-
                         float normX = (distance > 0) ? dx / distance : 1.0f;
                         float normY = (distance > 0) ? dy / distance : 0.0f;
-
                         entity.setX(entity.getX() + static_cast<int>(normX * separationDistance));
                         entity.setY(entity.getY() + static_cast<int>(normY * separationDistance));
                     }
@@ -181,23 +200,23 @@ int main() {
             }
         }
 
-        // 3. Mise à jour et Collision Projectile-Entité
+        // 3. Mise à jour et Collision Projectile-Entité (Inchangé)
         projectiles.erase(
                 std::remove_if(projectiles.begin(), projectiles.end(), [&](Projectile& proj) {
                     proj.update();
                     if (!proj.isAlive()) return true;
 
                     for (auto &entity : entities) {
+                        if (entity.getName() == proj.getShooterName()) {
+                            continue;
+                        }
                         if (entity.getIsAlive()) {
                             int dx = proj.getX() - entity.getX();
                             int dy = proj.getY() - entity.getY();
                             float distance = std::sqrt((float)dx * dx + (float)dy * dy);
 
                             if (distance < proj.getRadius() + entity.getRad()) {
-                                entity.setHealth(entity.getHealth() - proj.getDamage());
-                                if (entity.getHealth() <= 0 && entity.getIsAlive()) {
-                                    entity.die();
-                                }
+                                entity.takeDamage(proj.getDamage());
                                 return true; // Supprimer le projectile
                             }
                         }
@@ -207,16 +226,15 @@ int main() {
                 projectiles.end()
         );
 
-        // 4. Dessin des entités et des projectiles
+        // 4. Dessin des entités et des projectiles (Inchangé)
         for (auto &entity : entities) {
             entity.draw(graphics.getRenderer());
         }
-
         for (auto &proj : projectiles) {
             proj.draw(graphics.getRenderer());
         }
 
-        // 5. Suppression des entités mortes
+        // 5. Suppression des entités mortes (Inchangé)
         entities.erase(
                 std::remove_if(entities.begin(), entities.end(), [](const Entity &entity) {
                     return !entity.getIsAlive();

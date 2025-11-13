@@ -1,8 +1,10 @@
 #include "Projectile.h"
 #include <iostream>
+#include <utility> // *** AJOUTÉ (pour std::move) ***
 
-Projectile::Projectile(int startX, int startY, float targetX, float targetY, int speed, int damage, int range, SDL_Color color, int radius)
-        : x(startX), y(startY), speed(speed), damage(damage), maxRange(range), distanceTraveled(0), color(color), radius(radius) {
+// *** CONSTRUCTEUR MIS À JOUR ***
+Projectile::Projectile(int startX, int startY, float targetX, float targetY, int speed, int damage, int range, SDL_Color color, int radius, std::string shooterName)
+        : x(startX), y(startY), speed(speed), damage(damage), maxRange(range), distanceTraveled(0), color(color), radius(radius), shooterName(std::move(shooterName)) {
 
     // Calculer la direction
     float distX = targetX - startX;
