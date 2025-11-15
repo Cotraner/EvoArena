@@ -16,8 +16,10 @@ SDL_Color Entity::generateRandomColor() {
     };
 }
 
-// --- FONCTION DE CALCUL DES STATS --- (Inchangée)
+// --- FONCTION DE CALCUL DES STATS (MODIFIÉE ÉTAPE 3) ---
 void Entity::calculateDerivedStats() {
+
+    // --- PARTIE 1 : STATS DU CORPS (Basées sur 'rad') ---
     const float HEALTH_MULTIPLIER = 4.0f;
     const float SPEED_BASE = 5.0f;
     const float SPEED_DIVISOR = 50.0f;
@@ -34,17 +36,68 @@ void Entity::calculateDerivedStats() {
 
     this->sightRadius = 150 + (rad * 2);
 
-    this->armor = ((float)rad - 10.0f) / (40.0f - 10.0f);
-    this->armor = this->armor * 0.60f;
-    this->armor = std::clamp(this->armor, 0.0f, 0.8f);
+    // Normalise 'rad' (10-40) en un biais (0.0 - 1.0)
+    float sizeBias = ((float)rad - 10.0f) / (40.0f - 10.0f);
+    sizeBias = std::clamp(sizeBias, 0.0f, 1.0f);
 
-    this->regenAmount = (this->speed >= 4) ? 1 : 0;
+    this->armor = sizeBias * 0.60f; // 0% à 60% d'armure
+    this->regenAmount = (this->speed >= 4) ? 1 : 0; // 1 regen si rapide
+
+
+    // --- PARTIE 2 : STATS D'ARME (Basées sur 'weaponGene' ou 'rad') ---
+
+    if (isRanged) {
+        // --- STATS RANGED (Basées sur 'weaponGene' 0-100) ---
+        // Compromis : Puissance (1.0) vs Portée (0.0)
+        float powerBias = (float)weaponGene / 100.0f;
+        float rangeBias = 1.0f - powerBias;
+
+        const int MIN_RANGED_DMG = 5;
+        const int MAX_RANGED_DMG = 20;
+        const int MIN_RANGED_RANGE = 150;
+        const int MAX_RANGED_RANGE = 600;
+
+        // Gène 0 (Range) = 5 Dmg, 600 Portée
+        // Gène 100 (Power) = 20 Dmg, 150 Portée
+        damage = MIN_RANGED_DMG + (int)(powerBias * (MAX_RANGED_DMG - MIN_RANGED_DMG));
+        attackRange = MIN_RANGED_RANGE + (int)(rangeBias * (MAX_RANGED_RANGE - MIN_RANGED_RANGE));
+
+        // Cooldown : Plus puissant = plus lent
+        attackCooldown = 500 + (Uint32)(powerBias * 2000); // 500ms à 2500ms
+
+        // Projectile : Plus puissant = plus gros et plus lent
+        projectileSpeed = 12 - (int)(powerBias * 8); // Vitesse 12 (rapide) à 4 (lent)
+        projectileRadius = 4 + (int)(powerBias * 8); // Rayon 4 (petit) à 12 (gros)
+
+    } else {
+        // --- STATS MELEE (Basées sur 'sizeBias' 0.0-1.0) ---
+        // Compromis : 'rad' (taille)
+
+        const int MIN_MELEE_DMG = 5;
+        const int MAX_MELEE_DMG = 25;
+        const int MIN_MELEE_COOLDOWN = 150;
+        const int MAX_MELEE_COOLDOWN = 600;
+
+        // Gros (sizeBias 1.0) = 25 Dmg, 600ms Cooldown
+        // Petit (sizeBias 0.0) = 5 Dmg, 150ms Cooldown
+        damage = MIN_MELEE_DMG + (int)(sizeBias * (MAX_MELEE_DMG - MIN_MELEE_DMG));
+        attackCooldown = MIN_MELEE_COOLDOWN + (Uint32)(sizeBias * (MAX_MELEE_COOLDOWN - MIN_MELEE_COOLDOWN));
+
+        // Portée de mêlée légèrement augmentée par la taille
+        attackRange = 50 + (int)(sizeBias * 40); // 50 à 90 de portée
+
+        // Stats projectile non pertinentes
+        projectileSpeed = 0;
+        projectileRadius = 0;
+    }
 }
 
 
-// --- CONSTRUCTEUR --- (Inchangé)
+// --- CONSTRUCTEUR (MODIFIÉ) ---
 Entity::Entity(std::string name, int x, int y, int rad, SDL_Color color, bool isRangedGene):
-        x(x), y(y), rad(rad), color(color), name(std::move(name)), isRanged(isRangedGene) {
+        x(x), y(y), rad(rad), color(color), name(std::move(name)),
+        isRanged(isRangedGene), weaponGene(std::rand() % 101) // Initialise le gène d'arme (0-100)
+{
 
     direction[0] = 0;
     direction[1] = 0;
@@ -58,6 +111,7 @@ Entity::Entity(std::string name, int x, int y, int rad, SDL_Color color, bool is
 
     lastRegenTick = SDL_GetTicks() - (std::rand() % REGEN_COOLDOWN_MS);
 
+    // Calcule TOUTES les stats (corps + arme)
     calculateDerivedStats();
 }
 
@@ -65,7 +119,7 @@ Entity::Entity(std::string name, int x, int y, int rad, SDL_Color color, bool is
 Entity::~Entity() = default;
 
 
-// --- FONCTION DRAW (Nettoyée) ---
+// --- FONCTION DRAW --- (Inchangée)
 void Entity::draw(SDL_Renderer* renderer) {
     // Dessiner le cercle de l'entité
     filledCircleRGBA(renderer, x, y, rad, color.r, color.g, color.b, 255);
@@ -111,21 +165,6 @@ void Entity::draw(SDL_Renderer* renderer) {
     // Affichage des PV/Vitesse au centre
     std::string infoText = std::to_string(health) + " / " + std::to_string(speed);
     stringRGBA(renderer, x - 15, y - 5, infoText.c_str(), 0, 0, 0, 255);
-
-    // *** SUPPRIMÉ : Texte de combat ***
-    // std::string type = isRanged ? "RNG" : "MLY";
-    // std::string rangeStr = isRanged ? std::to_string(RANGED_RANGE) : std::to_string(MELEE_RANGE);
-    // std::string debugStr = type + " Rng:" + rangeStr;
-    // stringRGBA(renderer, x - 30, y + rad + 15, debugStr.c_str(), color.r, color.g, color.b, 255);
-
-    // *** SUPPRIMÉ : Texte de stats ***
-    // std::string statsStr = "A:" + std::to_string((int)(armor * 100)) + "% R:" + std::to_string(regenAmount);
-    // stringRGBA(renderer, x - 30, y + rad + 25, statsStr.c_str(), 200, 200, 200, 255);
-
-    // *** SUPPRIMÉ : Ligne de visée ***
-    // if (targetX != -1 && targetY != -1) {
-    //     lineRGBA(renderer, x, y, targetX, targetY, color.r, color.g, color.b, 200);
-    // }
 }
 
 // --- FONCTION UPDATE --- (Inchangée)

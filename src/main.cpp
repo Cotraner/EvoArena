@@ -44,9 +44,9 @@ int main() {
         entities.emplace_back(name, randomX, randomY, randomRad, color, isRangedGene);
     }
 
-    // --- PARAMÈTRES FIXES POUR LE PROJECTILE (Utilisé par les Ranged) ---
-    const int PROJECTILE_SPEED = 8;
-    const int PROJECTILE_RADIUS = 8;
+    // --- SUPPRIMÉ : Constantes de projectiles (remplacées par des gènes) ---
+    // const int PROJECTILE_SPEED = 8;
+    // const int PROJECTILE_RADIUS = 8;
 
     SDL_Event event;
     bool running = true;
@@ -88,10 +88,10 @@ int main() {
 
                 bool isRanged = entity.getIsRanged();
 
-                // Déterminer les stats d'attaque de l'entité actuelle
-                int attackRange = isRanged ? entity.getRangedRange() : entity.getMeleeRange();
-                Uint32 cooldown = isRanged ? entity.getRangedCooldownMS() : entity.getMeleeCooldownMS();
-                int damage = isRanged ? entity.getRangedDamage() : entity.getMeleeDamage();
+                // --- MODIFIÉ : Utilisation des getters de gènes ---
+                int attackRange = entity.getAttackRange();
+                Uint32 cooldown = entity.getAttackCooldown();
+                int damage = entity.getDamage();
 
 
                 // *** SECTION A. MOUVEMENT (MODIFIÉE POUR LE TIR EN ERRANCE) ***
@@ -149,15 +149,15 @@ int main() {
                         currentTime > lastShotTime[entity.getName()] + cooldown) {
 
                         if (isRanged) {
-                            // --- COMBAT A DISTANCE (Projectile) ---
+                            // --- COMBAT A DISTANCE (MODIFIÉ : Utilise les gènes) ---
                             Projectile newP(
                                     entity.getX(), entity.getY(),
                                     closestEnemy->getX(), closestEnemy->getY(),
-                                    PROJECTILE_SPEED,
+                                    entity.getProjectileSpeed(), // Gène
                                     damage,
                                     attackRange,
                                     entity.getColor(),
-                                    PROJECTILE_RADIUS,
+                                    entity.getProjectileRadius(), // Gène
                                     entity.getName()
                             );
                             projectiles.push_back(newP);

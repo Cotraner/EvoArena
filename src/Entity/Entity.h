@@ -31,7 +31,6 @@ public:
     void attack(Entity &other); // Note: Cette fonction est toujours inutilisée
     void die();
 
-    // *** NOUVEAU : Fonction centralisée pour prendre des dégâts ***
     void takeDamage(int amount);
 
 
@@ -50,15 +49,13 @@ public:
     int getMaxStamina() { return maxStamina; }
     bool getIsAlive() const { return isAlive; }
 
-    // GETTERS : Stats de combat fixes
+    // --- MODIFIÉ : GETTERS POUR LES GÈNES D'ARMES ---
     [[nodiscard]] bool getIsRanged() const { return isRanged; }
-    [[nodiscard]] int getRangedDamage() const { return RANGED_DAMAGE; }
-    [[nodiscard]] int getRangedRange() const { return RANGED_RANGE; }
-    [[nodiscard]] Uint32 getRangedCooldownMS() const { return RANGED_COOLDOWN_MS; }
-
-    [[nodiscard]] int getMeleeDamage() const { return MELEE_DAMAGE; }
-    [[nodiscard]] int getMeleeRange() const { return MELEE_RANGE; }
-    [[nodiscard]] Uint32 getMeleeCooldownMS() const { return MELEE_COOLDOWN_MS; }
+    [[nodiscard]] int getDamage() const { return damage; }
+    [[nodiscard]] int getAttackRange() const { return attackRange; }
+    [[nodiscard]] Uint32 getAttackCooldown() const { return attackCooldown; }
+    [[nodiscard]] int getProjectileSpeed() const { return projectileSpeed; }
+    [[nodiscard]] int getProjectileRadius() const { return projectileRadius; }
 
 
     static SDL_Color generateRandomColor();
@@ -66,26 +63,15 @@ public:
 private:
     void calculateDerivedStats();
 
-    // --- CORRECTION CLÉ : Les constantes sont STATIC CONSTEXPR ---
-    // (Partagées par toutes les instances pour éviter les erreurs de copie/affectation)
+    // --- SUPPRIMÉ : Constantes d'armes (remplacées par des gènes) ---
+    // static constexpr int RANGED_DAMAGE = 10;
+    // ... (toutes les autres constantes d'armes supprimées) ...
 
-    // Style Distance (Ranged)
-    static constexpr int RANGED_DAMAGE = 10;
-    static constexpr int RANGED_RANGE = 400;
-    static constexpr Uint32 RANGED_COOLDOWN_MS = 1500;
-
-    // Style Corps à Corps (Melee)
-    static constexpr int MELEE_DAMAGE = 10;
-    static constexpr int MELEE_RANGE = 70;
-    static constexpr Uint32 MELEE_COOLDOWN_MS = 200;
-
-    // *** NOUVEAU : Constante pour la régénération ***
     static constexpr Uint32 REGEN_COOLDOWN_MS = 2000; // 2 secondes
 
 
     std::string name;
     int x,y;
-    int rad; // Gène principal
     int health;
     int speed;
     int direction[2]{};
@@ -96,9 +82,6 @@ private:
     bool isAlive = true;
     SDL_Color color;
 
-    // Gène de combat
-    bool isRanged;
-
     // DEBUG VISUEL
     int targetX = -1;
     int targetY = -1;
@@ -107,10 +90,22 @@ private:
     float lastVelX = 1.0f;
     float lastVelY = 0.0f;
 
-    // *** NOUVEAU : Stats dérivées (Étape 2) ***
-    float armor = 0.0f; // Réduction des dégâts (0.0 = 0%, 1.0 = 100%)
-    int regenAmount = 0; // PV soignés par tick
-    Uint32 lastRegenTick = 0; // Timer pour la régénération
+    // Stats de régénération
+    int regenAmount = 0;
+    Uint32 lastRegenTick = 0;
+
+    // --- NOUVEAU : GÈNES (Étape 2 & 3) ---
+    int rad; // Gène principal (corps)
+    bool isRanged; // Gène de type de combat
+    int weaponGene; // Gène principal (arme, 0-100)
+    float armor = 0.0f;
+
+    // --- NOUVEAU : STATS DÉRIVÉES DES GÈNES (Arme) ---
+    int damage;
+    int attackRange;
+    Uint32 attackCooldown;
+    int projectileSpeed;
+    int projectileRadius;
 };
 
 
