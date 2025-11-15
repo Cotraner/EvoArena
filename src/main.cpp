@@ -1,5 +1,6 @@
 #include "Graphics.h"
 #include "constants.h"
+#include "Menu.h"
 #include "Entity/Entity.h"
 #include "Entity/Projectile.h"
 #include <iostream>
@@ -10,39 +11,31 @@
 #include <SDL2/SDL.h>
 #include <ctime>
 
+// --- DÉFINITION DE L'ÉTAT DU JEU ---
+enum GameState {
+    MENU,
+    SIMULATION
+};
+
 namespace {
     // Carte pour suivre le temps du dernier tir de chaque entité (par nom)
     std::map<std::string, Uint32> lastShotTime;
 }
+
+// --- DÉCLARATION DE LA FONCTION D'INITIALISATION DE LA SIMULATION ---
+std::vector<Entity> initializeSimulation(int maxEntities);
+
+// ----------------------------------------------------------------------
 
 int main() {
     Graphics graphics;
     std::vector<Entity> entities;
     std::vector<Projectile> projectiles;
 
-    // --- GENERATION ALÉATOIRE ET GARANTIE DE DIVERSITÉ (Étape 2) ---
-    const int NUM_ENTITIES = 15;
-    const int RANGED_COUNT = 5;
-
-    std::srand(std::time(0));
-
-    for (int i = 0; i < NUM_ENTITIES; ++i) {
-        int randomRad = 10 + (std::rand() % 31);
-        int randomX = randomRad + (std::rand() % (WINDOW_SIZE_WIDTH - 2 * randomRad));
-        int randomY = randomRad + (std::rand() % (WINDOW_SIZE_HEIGHT - 2 * randomRad));
-
-        std::string name = "E" + std::to_string(i + 1);
-        SDL_Color color = Entity::generateRandomColor();
-
-        bool isRangedGene;
-        if (i < RANGED_COUNT) {
-            isRangedGene = true;
-        } else {
-            isRangedGene = (std::rand() % 2 == 0);
-        }
-
-        entities.emplace_back(name, randomX, randomY, randomRad, color, isRangedGene);
-    }
+    // --- PARAMÈTRES DE JEU AJUSTABLES ---
+    int maxEntities = 15; // Taille de la population initiale (par défaut)
+    const int MIN_CELLS = 5;
+    const int MAX_CELLS = 50;
 
     // --- SUPPRIMÉ : Constantes de projectiles (remplacées par des gènes) ---
     // const int PROJECTILE_SPEED = 8;
@@ -52,41 +45,83 @@ int main() {
     bool running = true;
 
     while (running) {
-
+        // GESTION DES ÉVÉNEMENTS
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT || (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) {
                 running = false;
             }
-        }
 
-        // Nettoyer l'écran et dessiner le fond
-        SDL_RenderClear(graphics.getRenderer());
-        graphics.drawBackground();
+            // GESTION DES ÉVÉNEMENTS DU MENU
+            if (currentState == MENU) {
+                Menu::MenuAction action = menu.handleEvents(event);
 
-        // 1. LOGIQUE DE CIBLAGE ET DE TIR (Détermine où l'entité doit aller et si elle doit tirer)
-        for (auto &entity : entities) {
-            if (!entity.getIsAlive()) continue;
+                if (menu.getCurrentScreenState() == Menu::MAIN_MENU) {
+                    if (action == Menu::START_SIMULATION) {
+                        entities = initializeSimulation(maxEntities);
+                        projectiles.clear();
+                        lastShotTime.clear();
+                        currentState = SIMULATION;
+                    } else if (action == Menu::QUIT) {
+                        running = false;
+                    } else if (action == Menu::OPEN_SETTINGS) {
+                        menu.setScreenState(Menu::SETTINGS_SCREEN);
+                    }
+                }
+                else if (menu.getCurrentScreenState() == Menu::SETTINGS_SCREEN) {
+                    if (action == Menu::SAVE_SETTINGS) {
+                        menu.setScreenState(Menu::MAIN_MENU);
+                    }
+                    else if (action == Menu::CHANGE_CELL_COUNT) {
+                        int mouseX, mouseY;
+                        SDL_GetMouseState(&mouseX, &mouseY);
 
-            Entity* closestEnemy = nullptr;
-            float closestDistance = (float)(WINDOW_SIZE_WIDTH + WINDOW_SIZE_HEIGHT);
-
-            // Recherche de l'ennemi le plus proche
-            for (auto &other : entities) {
-                if (&entity != &other && other.getIsAlive()) {
-                    int dx = entity.getX() - other.getX();
-                    int dy = entity.getY() - other.getY();
-                    float distance = std::sqrt((float)dx * dx + (float)dy * dy);
-
-                    if (distance < closestDistance) {
-                        closestDistance = distance;
-                        closestEnemy = &other;
+                        // Logique d'ajustement du nombre de cellules
+                        if (SDL_PointInRect(new SDL_Point{mouseX, mouseY}, &menu.countUpButton.rect)) {
+                            if (maxEntities < MAX_CELLS) maxEntities++;
+                        }
+                        else if (SDL_PointInRect(new SDL_Point{mouseX, mouseY}, &menu.countDownButton.rect)) {
+                            if (maxEntities > MIN_CELLS) maxEntities--;
+                        }
                     }
                 }
             }
+        }
 
-            if (closestEnemy) {
+        // --- LOGIQUE D'AFFICHAGE ET DE JEU PAR ÉTAT ---
 
-                bool isRanged = entity.getIsRanged();
+        if (currentState == MENU) {
+            menu.draw(maxEntities);
+        }
+        else if (currentState == SIMULATION) {
+
+            // Nettoyer l'écran et dessiner le fond de la simulation
+            SDL_RenderClear(graphics.getRenderer());
+            graphics.drawBackground();
+
+            // 1. LOGIQUE DE CIBLAGE ET DE TIR (Logique Avancée)
+            for (auto &entity : entities) {
+                if (!entity.getIsAlive()) continue;
+
+                Entity* closestEnemy = nullptr;
+                float closestDistance = (float)(WINDOW_SIZE_WIDTH + WINDOW_SIZE_HEIGHT);
+
+                // Recherche de l'ennemi le plus proche
+                for (auto &other : entities) {
+                    if (&entity != &other && other.getIsAlive()) {
+                        int dx = entity.getX() - other.getX();
+                        int dy = entity.getY() - other.getY();
+                        float distance = std::sqrt((float)dx * dx + (float)dy * dy);
+
+                        if (distance < closestDistance) {
+                            closestDistance = distance;
+                            closestEnemy = &other;
+                        }
+                    }
+                }
+
+                if (closestEnemy) {
+
+                    bool isRanged = entity.getIsRanged();
 
                 // --- MODIFIÉ : Utilisation des getters de gènes ---
                 int attackRange = entity.getAttackRange();
@@ -94,59 +129,55 @@ int main() {
                 int damage = entity.getDamage();
 
 
-                // *** SECTION A. MOUVEMENT (MODIFIÉE POUR LE TIR EN ERRANCE) ***
-                int target[2] = {closestEnemy->getX(), closestEnemy->getY()};
+                    // A. MOUVEMENT (Logique Avancée)
+                    int target[2] = {closestEnemy->getX(), closestEnemy->getY()};
 
-                if (closestDistance < entity.getSightRadius()){
+                    if (closestDistance < entity.getSightRadius()){
 
-                    // --- NOUVELLE LOGIQUE DE KITING ---
+                        if (isRanged) {
+                            // *** COMPORTEMENT RANGED : KITING / ERRANCE ***
+                            const int idealRange = attackRange * 2 / 3;
 
-                    if (isRanged) {
-                        // *** COMPORTEMENT RANGED ***
-                        const int kiteDistance = attackRange / 3; // Définir la distance de fuite
+                            if (closestDistance < idealRange) {
+                                // 1. Trop près -> FUIR (Kiting)
+                                int fleeTarget[2] = {
+                                        entity.getX() + (entity.getX() - closestEnemy->getX()) * 2,
+                                        entity.getY() + (entity.getY() - closestEnemy->getY()) * 2
+                                };
+                                entity.chooseDirection(fleeTarget);
+                            }
+                            else if (closestDistance < attackRange) {
+                                // 2. Distance idéale -> ERRER (WANDER)
+                                entity.chooseDirection(nullptr);
+                            }
+                            else {
+                                // 3. Hors de portée -> AVANCER
+                                entity.chooseDirection(target);
+                            }
 
-                        if (closestDistance < kiteDistance) {
-                            // 1. Trop près -> FUIR
-                            int fleeTarget[2] = {
-                                    entity.getX() + (entity.getX() - closestEnemy->getX()),
-                                    entity.getY() + (entity.getY() - closestEnemy->getY())
-                            };
-                            entity.chooseDirection(fleeTarget);
-                        }
-                        else if (closestDistance < attackRange) {
-                            // 2. Distance idéale -> BOUGER EN ERRANT (WANDER)
-                            // (Au lieu de s'arrêter net)
-                            entity.chooseDirection(nullptr);
-                        }
-                        else {
-                            // 3. En vue, mais hors de portée -> AVANCER
-                            entity.chooseDirection(target);
+                        } else {
+                            // *** COMPORTEMENT MELEE : ARRÊT ET FRAPPE ***
+                            if (closestDistance < attackRange) {
+                                // 1. À portée -> S'ARRÊTER
+                                int stopTarget[2] = {entity.getX(), entity.getY()};
+                                entity.chooseDirection(stopTarget);
+                            } else {
+                                // 2. Hors de portée -> AVANCER
+                                entity.chooseDirection(target);
+                            }
                         }
 
                     } else {
-                        // *** COMPORTEMENT MELEE (Inchangé) ***
-                        if (closestDistance < attackRange) {
-                            // 1. À portée -> S'ARRÊTER ET FRAPPER
-                            int stopTarget[2] = {entity.getX(), entity.getY()};
-                            entity.chooseDirection(stopTarget);
-                        } else {
-                            // 2. Hors de portée -> AVANCER
-                            entity.chooseDirection(target);
-                        }
+                        // Ennemi hors de vue -> Mouvement aléatoire
+                        entity.chooseDirection(nullptr);
                     }
 
-                } else {
-                    // Ennemi hors de vue -> Mouvement aléatoire
-                    entity.chooseDirection(nullptr);
-                }
+                    // B. TIR/ATTAQUE
+                    if (closestDistance < attackRange) {
+                        Uint32 currentTime = SDL_GetTicks();
 
-
-                // B. TIR/ATTAQUE : Si dans la portée de combat spécifique au type
-                if (closestDistance < attackRange) {
-                    Uint32 currentTime = SDL_GetTicks();
-
-                    if (lastShotTime.find(entity.getName()) == lastShotTime.end() ||
-                        currentTime > lastShotTime[entity.getName()] + cooldown) {
+                        if (lastShotTime.find(entity.getName()) == lastShotTime.end() ||
+                            currentTime > lastShotTime[entity.getName()] + cooldown) {
 
                         if (isRanged) {
                             // --- COMBAT A DISTANCE (MODIFIÉ : Utilise les gènes) ---
@@ -166,87 +197,123 @@ int main() {
                             closestEnemy->takeDamage(damage);
                         }
 
-                        lastShotTime[entity.getName()] = currentTime;
-                    }
-                }
-            } else {
-                // Si aucun ennemi trouvé, mouvement aléatoire
-                entity.chooseDirection(nullptr);
-            }
-        }
-
-        // 2. MOUVEMENT et CORRECTION DES COLLISIONS (Inchangé)
-        for (auto &entity : entities) {
-            entity.update();
-        }
-        for (auto &entity : entities) {
-            for (auto &other : entities) {
-                if (&entity != &other && other.getIsAlive()) {
-                    int dx = entity.getX() - other.getX();
-                    int dy = entity.getY() - other.getY();
-                    float distance = std::sqrt((float)dx * dx + (float)dy * dy);
-                    int minDistance = entity.getRad() + other.getRad();
-
-                    if (distance < minDistance) {
-                        float overlap = minDistance - distance;
-                        float separationFactor = 0.5f;
-                        float separationDistance = overlap * separationFactor;
-                        float normX = (distance > 0) ? dx / distance : 1.0f;
-                        float normY = (distance > 0) ? dy / distance : 0.0f;
-                        entity.setX(entity.getX() + static_cast<int>(normX * separationDistance));
-                        entity.setY(entity.getY() + static_cast<int>(normY * separationDistance));
-                    }
-                }
-            }
-        }
-
-        // 3. Mise à jour et Collision Projectile-Entité (Inchangé)
-        projectiles.erase(
-                std::remove_if(projectiles.begin(), projectiles.end(), [&](Projectile& proj) {
-                    proj.update();
-                    if (!proj.isAlive()) return true;
-
-                    for (auto &entity : entities) {
-                        if (entity.getName() == proj.getShooterName()) {
-                            continue;
+                            lastShotTime[entity.getName()] = currentTime;
                         }
-                        if (entity.getIsAlive()) {
-                            int dx = proj.getX() - entity.getX();
-                            int dy = proj.getY() - entity.getY();
-                            float distance = std::sqrt((float)dx * dx + (float)dy * dy);
+                    }
+                } else {
+                    entity.chooseDirection(nullptr);
+                }
+            }
 
-                            if (distance < proj.getRadius() + entity.getRad()) {
-                                entity.takeDamage(proj.getDamage());
-                                return true; // Supprimer le projectile
+            // 2. MOUVEMENT et CORRECTION DES COLLISIONS
+            for (auto &entity : entities) {
+                entity.update();
+            }
+
+            for (auto &entity : entities) {
+                for (auto &other : entities) {
+                    if (&entity != &other && other.getIsAlive()) {
+                        int dx = entity.getX() - other.getX();
+                        int dy = entity.getY() - other.getY();
+
+                        float distance = std::sqrt((float)dx * dx + (float)dy * dy);
+                        int minDistance = entity.getRad() + other.getRad();
+
+                        if (distance < minDistance) {
+                            float overlap = minDistance - distance;
+                            float separationFactor = 0.5f;
+                            float separationDistance = overlap * separationFactor;
+
+                            float normX = (distance > 0) ? dx / distance : 1.0f;
+                            float normY = (distance > 0) ? dy / distance : 0.0f;
+
+                            entity.setX(entity.getX() + static_cast<int>(normX * separationDistance));
+                            entity.setY(entity.getY() + static_cast<int>(normY * separationDistance));
+                        }
+                    }
+                }
+            }
+
+            // 3. Mise à jour et Collision Projectile-Entité
+            projectiles.erase(
+                    std::remove_if(projectiles.begin(), projectiles.end(), [&](Projectile& proj) {
+                        proj.update();
+                        if (!proj.isAlive()) return true;
+
+                        for (auto &entity : entities) {
+                            if (entity.getIsAlive()) {
+                                // Empêche le suicide
+                                if (entity.getName() == proj.getShooterName()) continue;
+
+                                int dx = proj.getX() - entity.getX();
+                                int dy = proj.getY() - entity.getY();
+                                float distance = std::sqrt((float)dx * dx + (float)dy * dy);
+
+                                if (distance < proj.getRadius() + entity.getRad()) {
+                                    entity.setHealth(entity.getHealth() - proj.getDamage());
+                                    if (entity.getHealth() <= 0 && entity.getIsAlive()) {
+                                        entity.die();
+                                    }
+                                    return true;
+                                }
                             }
                         }
-                    }
-                    return false;
-                }),
-                projectiles.end()
-        );
+                        return false;
+                    }),
+                    projectiles.end()
+            );
 
-        // 4. Dessin des entités et des projectiles (Inchangé)
-        for (auto &entity : entities) {
-            entity.draw(graphics.getRenderer());
+            // 4. Dessin des entités et des projectiles
+            for (auto &entity : entities) {
+                entity.draw(graphics.getRenderer());
+            }
+
+            for (auto &proj : projectiles) {
+                proj.draw(graphics.getRenderer());
+            }
+
+            // 5. Suppression des entités mortes
+            entities.erase(
+                    std::remove_if(entities.begin(), entities.end(), [](const Entity &entity) {
+                        return !entity.getIsAlive();
+                    }),
+                    entities.end()
+            );
+
+            // Afficher le rendu
+            SDL_RenderPresent(graphics.getRenderer());
+
+            SDL_Delay(16);
         }
-        for (auto &proj : projectiles) {
-            proj.draw(graphics.getRenderer());
-        }
-
-        // 5. Suppression des entités mortes (Inchangé)
-        entities.erase(
-                std::remove_if(entities.begin(), entities.end(), [](const Entity &entity) {
-                    return !entity.getIsAlive();
-                }),
-                entities.end()
-        );
-
-        // Afficher le rendu
-        SDL_RenderPresent(graphics.getRenderer());
-
-        SDL_Delay(16);
     }
 
     return 0;
+}
+
+// --- DÉFINITION DE LA FONCTION D'INITIALISATION DE LA SIMULATION ---
+std::vector<Entity> initializeSimulation(int maxEntities) {
+    std::vector<Entity> newEntities;
+    std::srand(std::time(0));
+
+    const int RANGED_COUNT = maxEntities / 3;
+
+    for (int i = 0; i < maxEntities; ++i) {
+        int randomRad = 10 + (std::rand() % 31);
+        int randomX = randomRad + (std::rand() % (WINDOW_SIZE_WIDTH - 2 * randomRad));
+        int randomY = randomRad + (std::rand() % (WINDOW_SIZE_HEIGHT - 2 * randomRad));
+
+        std::string name = "E" + std::to_string(i + 1);
+        SDL_Color color = Entity::generateRandomColor();
+
+        bool isRangedGene;
+        if (i < RANGED_COUNT) {
+            isRangedGene = true;
+        } else {
+            isRangedGene = (std::rand() % 2 == 0);
+        }
+
+        // Utilisation du constructeur à 6 arguments
+        newEntities.emplace_back(name, randomX, randomY, randomRad, color, isRangedGene);
+    }
+    return newEntities;
 }

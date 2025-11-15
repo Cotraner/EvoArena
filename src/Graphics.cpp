@@ -18,6 +18,16 @@ Graphics::Graphics(){
             std::cerr << "Erreur création texture : " << SDL_GetError() << std::endl;
         }
     }
+    SDL_Surface* menuBgSurface = IMG_Load("../assets/images/backgroundMenu.jpg");
+    if (!menuBgSurface) {
+        std::cerr << "Erreur IMG_Load pour le fond du menu: " << IMG_GetError() << std::endl;
+    } else {
+        menuBackgroundTexture = SDL_CreateTextureFromSurface(renderer, menuBgSurface);
+        SDL_FreeSurface(menuBgSurface);
+        if (!menuBackgroundTexture) {
+            std::cerr << "Erreur création texture menu : " << SDL_GetError() << std::endl;
+        }
+    }
     SDL_RenderPresent(renderer);
 }
 
@@ -33,6 +43,10 @@ Graphics::~Graphics() {
     if (background) {
         SDL_DestroyTexture(background);
         background = nullptr;
+    }
+    if (menuBackgroundTexture) { // <<< NOUVEAU : Destruction du fond du menu >>>
+        SDL_DestroyTexture(menuBackgroundTexture);
+        menuBackgroundTexture = nullptr;
     }
 
     SDL_Quit();

@@ -2,7 +2,7 @@
 #define EVOARENA_MENU_H
 
 #include <SDL2/SDL.h>
-#include "SDL_ttf.h"
+#include <SDL2/SDL_ttf.h>
 #include <string>
 #include "constants.h"
 
@@ -19,27 +19,54 @@ public:
     enum MenuAction {
         NONE,
         START_SIMULATION,
-        QUIT
+        QUIT,
+        OPEN_SETTINGS,      // Ouvrir les paramètres
+        SAVE_SETTINGS,      // Sauvegarder et revenir
+        CHANGE_CELL_COUNT   // Changer le nombre de cellules
     };
 
-    Menu(SDL_Renderer* renderer);
+    // CONSTRUCTEUR MIS À JOUR
+    Menu(SDL_Renderer* renderer, SDL_Texture* backgroundTexture);
     ~Menu();
 
     MenuAction handleEvents(const SDL_Event& event);
-    void draw();
+    void draw(int maxEntities); // Affiche le nombre de cellules
+
+    // État du menu
+    enum ScreenState {
+        MAIN_MENU,
+        SETTINGS_SCREEN
+    };
+
+    void setScreenState(ScreenState state) { currentScreen = state; }
+    ScreenState getCurrentScreenState() const { return currentScreen; }
+
+    // Boutons de l'écran Settings pour le Main.cpp
+    Button countUpButton;
+    Button countDownButton;
 
 private:
     SDL_Renderer* renderer;
     TTF_Font* font;
+    SDL_Texture* backgroundTexture;
+
+    ScreenState currentScreen = MAIN_MENU;
+
+    // Boutons du Main Menu
     Button startButton;
     Button quitButton;
+    Button settingsButton;
 
-    // Initialisation des éléments de la SDL_ttf et du menu
+    // Boutons de l'écran Settings
+    Button saveButton;
+
     bool initializeTTF();
     void drawButton(Button& button);
-
-    // Fonction utilitaire pour dessiner le texte au centre du bouton
     void drawText(const std::string& text, int x, int y, SDL_Color color);
+
+    // Fonctions de dessin spécifiques
+    void drawMainMenu(int maxEntities);
+    void drawSettingsScreen(int maxEntities);
 };
 
 #endif //EVOARENA_MENU_H

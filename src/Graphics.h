@@ -1,3 +1,5 @@
+// Graphics.h
+
 #ifndef EVOARENA_GRAPHICS_H
 #define EVOARENA_GRAPHICS_H
 
@@ -17,10 +19,14 @@ public:
     SDL_Window* getWindow() { return window; } ;
     void drawBackground();
 
+    // NOUVEAU GETTER : Permet à main.cpp d'accéder à la texture
+    SDL_Texture* getMenuBackgroundTexture() { return menuBackgroundTexture; } ;
+
 private:
     SDL_Window* window;
     SDL_Renderer* renderer;
     SDL_Texture* background = nullptr;
+    SDL_Texture* menuBackgroundTexture = nullptr; // Note : Déjà privé
 };
 
 
