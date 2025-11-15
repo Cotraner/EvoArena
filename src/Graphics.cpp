@@ -1,5 +1,5 @@
 #include "Graphics.h"
-
+#include <SDL2/SDL_image.h> // Assurez-vous que IMG_Load est disponible
 
 Graphics::Graphics(){
     SDL_CreateWindowAndRenderer(WINDOW_SIZE_WIDTH, WINDOW_SIZE_HEIGHT, 0, &window, &renderer);
@@ -28,6 +28,19 @@ Graphics::Graphics(){
             std::cerr << "Erreur création texture menu : " << SDL_GetError() << std::endl;
         }
     }
+
+    // *** NOUVEAU : Chargement de l'icône des paramètres ***
+    SDL_Surface* settingsIconSurface = IMG_Load("../assets/images/settings-icon.png");
+    if (!settingsIconSurface) {
+        std::cerr << "Erreur IMG_Load pour l'icône settings: " << IMG_GetError() << std::endl;
+    } else {
+        settingsIconTexture = SDL_CreateTextureFromSurface(renderer, settingsIconSurface);
+        SDL_FreeSurface(settingsIconSurface);
+        if (!settingsIconTexture) {
+            std::cerr << "Erreur création texture icône settings : " << SDL_GetError() << std::endl;
+        }
+    }
+
     SDL_RenderPresent(renderer);
 }
 
@@ -44,9 +57,14 @@ Graphics::~Graphics() {
         SDL_DestroyTexture(background);
         background = nullptr;
     }
-    if (menuBackgroundTexture) { // <<< NOUVEAU : Destruction du fond du menu >>>
+    if (menuBackgroundTexture) {
         SDL_DestroyTexture(menuBackgroundTexture);
         menuBackgroundTexture = nullptr;
+    }
+    // *** NOUVEAU : Destruction de l'icône ***
+    if (settingsIconTexture) {
+        SDL_DestroyTexture(settingsIconTexture);
+        settingsIconTexture = nullptr;
     }
 
     SDL_Quit();

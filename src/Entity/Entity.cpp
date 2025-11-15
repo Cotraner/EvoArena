@@ -16,7 +16,7 @@ SDL_Color Entity::generateRandomColor() {
     };
 }
 
-// --- FONCTION DE CALCUL DES STATS (MODIFIÉE ÉTAPE 3) ---
+// --- FONCTION DE CALCUL DES STATS (MODIFIÉE POUR STAMINA) ---
 void Entity::calculateDerivedStats() {
 
     // --- PARTIE 1 : STATS DU CORPS (Basées sur 'rad') ---
@@ -31,7 +31,8 @@ void Entity::calculateDerivedStats() {
     this->speed = (int)(SPEED_BASE + (SPEED_DIVISOR / (float)rad));
     if (this->speed < MIN_SPEED) this->speed = (int)MIN_SPEED;
 
-    this->maxStamina = this->maxHealth * 2;
+    // Max Stamina est lié à la santé max
+    this->maxStamina = (int)(this->maxHealth * 1.5f);
     this->stamina = this->maxStamina;
 
     this->sightRadius = 150 + (rad * 2);
@@ -48,47 +49,41 @@ void Entity::calculateDerivedStats() {
 
     if (isRanged) {
         // --- STATS RANGED (Basées sur 'weaponGene' 0-100) ---
-        // Compromis : Puissance (1.0) vs Portée (0.0)
         float powerBias = (float)weaponGene / 100.0f;
         float rangeBias = 1.0f - powerBias;
 
+        // ... (Calculs de damage, attackRange, etc. inchangés) ...
         const int MIN_RANGED_DMG = 5;
         const int MAX_RANGED_DMG = 20;
         const int MIN_RANGED_RANGE = 150;
         const int MAX_RANGED_RANGE = 600;
 
-        // Gène 0 (Range) = 5 Dmg, 600 Portée
-        // Gène 100 (Power) = 20 Dmg, 150 Portée
         damage = MIN_RANGED_DMG + (int)(powerBias * (MAX_RANGED_DMG - MIN_RANGED_DMG));
         attackRange = MIN_RANGED_RANGE + (int)(rangeBias * (MAX_RANGED_RANGE - MIN_RANGED_RANGE));
+        attackCooldown = 500 + (Uint32)(powerBias * 2000);
+        projectileSpeed = 12 - (int)(powerBias * 8);
+        projectileRadius = 4 + (int)(powerBias * 8);
 
-        // Cooldown : Plus puissant = plus lent
-        attackCooldown = 500 + (Uint32)(powerBias * 2000); // 500ms à 2500ms
-
-        // Projectile : Plus puissant = plus gros et plus lent
-        projectileSpeed = 12 - (int)(powerBias * 8); // Vitesse 12 (rapide) à 4 (lent)
-        projectileRadius = 4 + (int)(powerBias * 8); // Rayon 4 (petit) à 12 (gros)
+        // *** NOUVEAU : Coût en Stamina (Ranged) ***
+        staminaAttackCost = 5 + (int)(powerBias * 15); // Coût de 5 (faible) à 20 (élevé)
 
     } else {
         // --- STATS MELEE (Basées sur 'sizeBias' 0.0-1.0) ---
-        // Compromis : 'rad' (taille)
 
+        // ... (Calculs de damage, attackCooldown, etc. inchangés) ...
         const int MIN_MELEE_DMG = 5;
         const int MAX_MELEE_DMG = 25;
         const int MIN_MELEE_COOLDOWN = 150;
         const int MAX_MELEE_COOLDOWN = 600;
 
-        // Gros (sizeBias 1.0) = 25 Dmg, 600ms Cooldown
-        // Petit (sizeBias 0.0) = 5 Dmg, 150ms Cooldown
         damage = MIN_MELEE_DMG + (int)(sizeBias * (MAX_MELEE_DMG - MIN_MELEE_DMG));
         attackCooldown = MIN_MELEE_COOLDOWN + (Uint32)(sizeBias * (MAX_MELEE_COOLDOWN - MIN_MELEE_COOLDOWN));
-
-        // Portée de mêlée légèrement augmentée par la taille
-        attackRange = 50 + (int)(sizeBias * 40); // 50 à 90 de portée
-
-        // Stats projectile non pertinentes
+        attackRange = 50 + (int)(sizeBias * 40);
         projectileSpeed = 0;
         projectileRadius = 0;
+
+        // *** NOUVEAU : Coût en Stamina (Melee) ***
+        staminaAttackCost = 5 + (int)(sizeBias * 15); // Coût de 5 (petit) à 20 (gros)
     }
 }
 
@@ -109,7 +104,10 @@ Entity::Entity(std::string name, int x, int y, int rad, SDL_Color color, bool is
     lastVelX = cos(angle);
     lastVelY = sin(angle);
 
-    lastRegenTick = SDL_GetTicks() - (std::rand() % REGEN_COOLDOWN_MS);
+    // Initialise les timers
+    Uint32 startTime = SDL_GetTicks();
+    lastRegenTick = startTime - (std::rand() % REGEN_COOLDOWN_MS);
+    lastStaminaUseTick = startTime; // Peut se régénérer immédiatement
 
     // Calcule TOUTES les stats (corps + arme)
     calculateDerivedStats();
@@ -120,26 +118,26 @@ Entity::~Entity() = default;
 
 
 // --- FONCTION DRAW --- (Inchangée)
-void Entity::draw(SDL_Renderer* renderer) {
+void Entity::draw(SDL_Renderer* renderer, bool showDebug) {
     // Dessiner le cercle de l'entité
     filledCircleRGBA(renderer, x, y, rad, color.r, color.g, color.b, 255);
 
-    // Dessiner le rayon de vision en blanc (semi-transparent)
-    circleRGBA(renderer, x, y, sightRadius, 255, 255, 255, 50);
+    // --- MODIFIÉ : Conditionnel ---
+    if (showDebug) {
+        // Dessiner le rayon de vision en blanc (semi-transparent)
+        circleRGBA(renderer, x, y, sightRadius, 255, 255, 255, 50);
+    }
 
     // Dessiner les barres de santé et d'endurance
     int barWidth = 6;
     int barHeight = 2 * rad;
     int offset = rad + 5;
 
-    // Pourcentages clampés
+    // ... (Reste du code de dessin des barres inchangé) ...
     float healthPercent = (float)health / (float)maxHealth;
     healthPercent = std::clamp(healthPercent, 0.0f, 1.0f);
-
     float staminaPercent = (float)stamina / (float)maxStamina;
     staminaPercent = std::clamp(staminaPercent, 0.0f, 1.0f);
-
-    // Barre de Santé (rouge)
     SDL_Rect healthBarBg = {x - offset - barWidth, y - barHeight / 2, barWidth, barHeight};
     SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
     SDL_RenderFillRect(renderer, &healthBarBg);
@@ -149,8 +147,6 @@ void Entity::draw(SDL_Renderer* renderer) {
         SDL_SetRenderDrawColor(renderer, 200, 0, 0, 255);
         SDL_RenderFillRect(renderer, &healthBar);
     }
-
-    // Barre d'Endurance (bleue)
     SDL_Rect staminaBarBg = {x + offset, y - barHeight / 2, barWidth, barHeight};
     SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
     SDL_RenderFillRect(renderer, &staminaBarBg);
@@ -161,16 +157,19 @@ void Entity::draw(SDL_Renderer* renderer) {
         SDL_RenderFillRect(renderer, &staminaBar);
     }
 
-
     // Affichage des PV/Vitesse au centre
     std::string infoText = std::to_string(health) + " / " + std::to_string(speed);
     stringRGBA(renderer, x - 15, y - 5, infoText.c_str(), 0, 0, 0, 255);
 }
 
-// --- FONCTION UPDATE --- (Inchangée)
+// --- FONCTION UPDATE (MODIFIÉE POUR STAMINA) ---
 void Entity::update() {
-    if (regenAmount > 0 && isAlive && health < maxHealth) {
-        Uint32 currentTime = SDL_GetTicks();
+    if (!isAlive) return;
+
+    Uint32 currentTime = SDL_GetTicks();
+
+    // 1. Régénération de la santé
+    if (regenAmount > 0 && health < maxHealth) {
         if (currentTime > lastRegenTick + REGEN_COOLDOWN_MS) {
             health += regenAmount;
             if (health > maxHealth) health = maxHealth;
@@ -178,11 +177,32 @@ void Entity::update() {
         }
     }
 
-    if (health <= 0 && isAlive) {
+    // *** NOUVEAU : 2. Régénération et consommation de la Stamina ***
+    if (isFleeing) {
+        // Consommer de la stamina en fuyant
+        if (stamina > 0) {
+            stamina -= STAMINA_FLEE_COST_PER_FRAME;
+            lastStaminaUseTick = currentTime; // Retarde la régénération
+            if (stamina < 0) stamina = 0;
+        } else {
+            isFleeing = false; // Ne peut plus fuir
+        }
+    } else {
+        // Régénérer la stamina si le délai est passé
+        if (stamina < maxStamina && currentTime > lastStaminaUseTick + STAMINA_REGEN_DELAY_MS) {
+            stamina += STAMINA_REGEN_RATE;
+            if (stamina > maxStamina) stamina = maxStamina;
+        }
+    }
+
+
+    // 3. Vérification de la mort (au cas où, bien que géré par takeDamage)
+    if (health <= 0) {
         die();
         return;
     }
 
+    // 4. Logique de mouvement (inchangée)
     if (direction[0] == 0 && direction[1] == 0) {
         chooseDirection();
     }
@@ -208,8 +228,9 @@ void Entity::update() {
         lastVelY = normY;
     }
 
+    // 5. Gestion des bords (inchangée)
     bool collided = false;
-
+    // ... (code des collisions avec les bords inchangé) ...
     if (x < rad) {
         x = rad;
         collided = true;
@@ -237,6 +258,7 @@ void Entity::update() {
 
 
 // --- FONCTION CHOOSEDIRECTION --- (Inchangée)
+// ... (code inchangé) ...
 void Entity::chooseDirection(int target[2]) {
 
     if(target != nullptr){
@@ -288,6 +310,7 @@ void Entity::chooseDirection(int target[2]) {
 }
 
 // --- FONCTION KNOCKBACK --- (Inchangée)
+// ... (code inchangé) ...
 void Entity::knockBack() {
     const int KNOCKBACK_DISTANCE = 50;
 
@@ -303,6 +326,7 @@ void Entity::knockBack() {
 }
 
 // --- FONCTION TAKEDAMAGE --- (Inchangée)
+// ... (code inchangé) ...
 void Entity::takeDamage(int amount) {
     if (!isAlive) return;
 
@@ -320,6 +344,7 @@ void Entity::takeDamage(int amount) {
 
 
 // --- FONCTION ATTACK --- (Inchangée)
+// ... (code inchangé) ...
 void Entity::attack(Entity &other) {
     if (!isAlive || !other.isAlive) {
         return;
@@ -328,7 +353,18 @@ void Entity::attack(Entity &other) {
 }
 
 // --- FONCTION DIE --- (Inchangée)
+// ... (code inchangé) ...
 void Entity::die() {
     isAlive = false;
     this->color = {100,100,100,255};
+}
+
+// --- NOUVELLE FONCTION : consumeStamina ---
+bool Entity::consumeStamina(int amount) {
+    if (stamina >= amount) {
+        stamina -= amount;
+        lastStaminaUseTick = SDL_GetTicks(); // Met à jour le timer de délai
+        return true;
+    }
+    return false; // Pas assez de stamina
 }

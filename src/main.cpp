@@ -1,15 +1,13 @@
 #include "Graphics.h"
 #include "constants.h"
 #include "Menu.h"
-#include "Entity/Entity.h"
-#include "Entity/Projectile.h"
+#include "core/Simulation.h"
 #include <iostream>
 #include <vector>
 #include <map>
-#include <cmath>
-#include <algorithm>
-#include <SDL2/SDL.h>
-#include <ctime>
+#include <memory>
+#include <SDL2/SDL2_gfxPrimitives.h> // *** NOUVEAU : Requis pour stringRGBA ***
+#include <string> // *** NOUVEAU : Requis pour std::to_string ***
 
 // --- DÉFINITION DE L'ÉTAT DU JEU ---
 enum GameState {
@@ -17,34 +15,76 @@ enum GameState {
     SIMULATION
 };
 
+// --- NOUVEAU : Structure simple pour les boutons du panneau ---
+struct ControlButton {
+    SDL_Rect rect;
+    std::string text;
+};
+
+// --- NOUVEAU : Variables globales pour le panneau de contrôle ---
 namespace {
-    // Carte pour suivre le temps du dernier tir de chaque entité (par nom)
-    std::map<std::string, Uint32> lastShotTime;
+    // État de la simulation
+    bool isPaused = false;
+    int simulationSpeed = 1; // 1, 2, ou 5
+    bool showDebug = false; // Pour les rayons de vision
+
+    // État du panneau
+    bool isControlPanelVisible = false;
+    const int CONTROL_PANEL_WIDTH = 220;
+    float controlPanelCurrentX = (float)-CONTROL_PANEL_WIDTH;
+    float controlPanelTargetX = (float)-CONTROL_PANEL_WIDTH;
+
+    // Ressources du panneau
+    SDL_Texture* settingsIconTexture = nullptr;
+    SDL_Rect settingsIconRect = {10, 10, 40, 40}; // Position de l'icône
+
+    // Déclarations des boutons (les rects seront mis à jour dynamiquement)
+    ControlButton pauseButton;
+    ControlButton speedButton;
+    ControlButton restartButton;
+    ControlButton debugButton;
+
+    // Fonction d'aide pour dessiner le panneau
+    void drawControlPanel(SDL_Renderer* renderer, int panelX);
 }
 
-// --- DÉCLARATION DE LA FONCTION D'INITIALISATION DE LA SIMULATION ---
-std::vector<Entity> initializeSimulation(int maxEntities);
 
 // ----------------------------------------------------------------------
 
 int main() {
     Graphics graphics;
-    std::vector<Entity> entities;
-    std::vector<Projectile> projectiles;
+
+    std::unique_ptr<Simulation> simulation = nullptr;
 
     // --- PARAMÈTRES DE JEU AJUSTABLES ---
-    int maxEntities = 15; // Taille de la population initiale (par défaut)
+    int maxEntities = 15;
     const int MIN_CELLS = 5;
     const int MAX_CELLS = 50;
 
-    // --- SUPPRIMÉ : Constantes de projectiles (remplacées par des gènes) ---
-    // const int PROJECTILE_SPEED = 8;
-    // const int PROJECTILE_RADIUS = 8;
+    // --- INITIALISATION DU MENU ET DE L'ÉTAT ---
+    Menu menu(graphics.getRenderer(), graphics.getMenuBackgroundTexture());
+    GameState currentState = MENU;
+
+    // --- NOUVEAU : Récupérer l'icône ---
+    settingsIconTexture = graphics.getSettingsIconTexture();
+    if (!settingsIconTexture) {
+        std::cerr << "Échec du chargement de la texture de l'icône !" << std::endl;
+    }
 
     SDL_Event event;
     bool running = true;
 
     while (running) {
+
+        // --- NOUVEAU : Animation du panneau de contrôle (se produit toujours) ---
+        controlPanelTargetX = isControlPanelVisible ? 0.0f : (float)-CONTROL_PANEL_WIDTH;
+        float dist = controlPanelTargetX - controlPanelCurrentX;
+        if (std::abs(dist) < 1.0f) {
+            controlPanelCurrentX = controlPanelTargetX;
+        } else {
+            controlPanelCurrentX += dist * 0.15f; // Glissement un peu plus rapide
+        }
+
         // GESTION DES ÉVÉNEMENTS
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT || (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) {
@@ -57,9 +97,12 @@ int main() {
 
                 if (menu.getCurrentScreenState() == Menu::MAIN_MENU) {
                     if (action == Menu::START_SIMULATION) {
-                        entities = initializeSimulation(maxEntities);
-                        projectiles.clear();
-                        lastShotTime.clear();
+                        simulation = std::make_unique<Simulation>(maxEntities);
+                        // Réinitialiser les états au cas où
+                        isPaused = false;
+                        simulationSpeed = 1;
+                        showDebug = false;
+                        isControlPanelVisible = false;
                         currentState = SIMULATION;
                     } else if (action == Menu::QUIT) {
                         running = false;
@@ -68,14 +111,13 @@ int main() {
                     }
                 }
                 else if (menu.getCurrentScreenState() == Menu::SETTINGS_SCREEN) {
+                    // ... (logique settings inchangée) ...
                     if (action == Menu::SAVE_SETTINGS) {
                         menu.setScreenState(Menu::MAIN_MENU);
                     }
                     else if (action == Menu::CHANGE_CELL_COUNT) {
                         int mouseX, mouseY;
                         SDL_GetMouseState(&mouseX, &mouseY);
-
-                        // Logique d'ajustement du nombre de cellules
                         if (SDL_PointInRect(new SDL_Point{mouseX, mouseY}, &menu.countUpButton.rect)) {
                             if (maxEntities < MAX_CELLS) maxEntities++;
                         }
@@ -85,200 +127,89 @@ int main() {
                     }
                 }
             }
+                // --- NOUVEAU : GESTION DES CLICS EN SIMULATION (Panneau + Entités) ---
+            else if (currentState == SIMULATION) {
+                if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
+                    SDL_Point mousePoint = {event.button.x, event.button.y};
+                    bool clickHandled = false;
+
+                    // 1. Priorité : Clic sur l'icône
+                    if (SDL_PointInRect(&mousePoint, &settingsIconRect)) {
+                        isControlPanelVisible = !isControlPanelVisible;
+                        clickHandled = true;
+                    }
+
+                        // 2. Priorité : Clic sur le panneau (s'il est visible)
+                    else if (mousePoint.x < (int)controlPanelCurrentX + CONTROL_PANEL_WIDTH) {
+                        // (Les rects des boutons ont été mis à jour par drawControlPanel au frame précédent)
+                        if (SDL_PointInRect(&mousePoint, &pauseButton.rect)) {
+                            isPaused = !isPaused;
+                            clickHandled = true;
+                        } else if (SDL_PointInRect(&mousePoint, &speedButton.rect)) {
+                            if (simulationSpeed == 1) simulationSpeed = 2;
+                            else if (simulationSpeed == 2) simulationSpeed = 5;
+                            else simulationSpeed = 1;
+                            clickHandled = true;
+                        } else if (SDL_PointInRect(&mousePoint, &restartButton.rect)) {
+                            simulation = std::make_unique<Simulation>(maxEntities);
+                            isPaused = false;
+                            simulationSpeed = 1;
+                            showDebug = false;
+                            clickHandled = true;
+                        } else if (SDL_PointInRect(&mousePoint, &debugButton.rect)) {
+                            showDebug = !showDebug;
+                            clickHandled = true;
+                        }
+                    }
+
+                    // 3. Priorité : Clic sur la simulation
+                    if (!clickHandled) {
+                        simulation->handleEvent(event);
+                    }
+                }
+            }
         }
 
         // --- LOGIQUE D'AFFICHAGE ET DE JEU PAR ÉTAT ---
 
         if (currentState == MENU) {
+            // Nettoyer l'écran
+            SDL_RenderClear(graphics.getRenderer());
             menu.draw(maxEntities);
         }
         else if (currentState == SIMULATION) {
 
-            // Nettoyer l'écran et dessiner le fond de la simulation
+            // --- NOUVEAU : Logique de Pause/Vitesse ---
+            if (!isPaused) {
+                for (int i = 0; i < simulationSpeed; ++i) {
+                    simulation->update();
+                }
+            }
+
+            // Le rendu se fait toujours, même en pause
             SDL_RenderClear(graphics.getRenderer());
             graphics.drawBackground();
 
-            // 1. LOGIQUE DE CIBLAGE ET DE TIR (Logique Avancée)
-            for (auto &entity : entities) {
-                if (!entity.getIsAlive()) continue;
+            // --- MODIFIÉ : Passe l'état de debug ---
+            simulation->render(graphics.getRenderer(), showDebug);
 
-                Entity* closestEnemy = nullptr;
-                float closestDistance = (float)(WINDOW_SIZE_WIDTH + WINDOW_SIZE_HEIGHT);
-
-                // Recherche de l'ennemi le plus proche
-                for (auto &other : entities) {
-                    if (&entity != &other && other.getIsAlive()) {
-                        int dx = entity.getX() - other.getX();
-                        int dy = entity.getY() - other.getY();
-                        float distance = std::sqrt((float)dx * dx + (float)dy * dy);
-
-                        if (distance < closestDistance) {
-                            closestDistance = distance;
-                            closestEnemy = &other;
-                        }
-                    }
-                }
-
-                if (closestEnemy) {
-
-                    bool isRanged = entity.getIsRanged();
-
-                // --- MODIFIÉ : Utilisation des getters de gènes ---
-                int attackRange = entity.getAttackRange();
-                Uint32 cooldown = entity.getAttackCooldown();
-                int damage = entity.getDamage();
-
-
-                    // A. MOUVEMENT (Logique Avancée)
-                    int target[2] = {closestEnemy->getX(), closestEnemy->getY()};
-
-                    if (closestDistance < entity.getSightRadius()){
-
-                        if (isRanged) {
-                            // *** COMPORTEMENT RANGED : KITING / ERRANCE ***
-                            const int idealRange = attackRange * 2 / 3;
-
-                            if (closestDistance < idealRange) {
-                                // 1. Trop près -> FUIR (Kiting)
-                                int fleeTarget[2] = {
-                                        entity.getX() + (entity.getX() - closestEnemy->getX()) * 2,
-                                        entity.getY() + (entity.getY() - closestEnemy->getY()) * 2
-                                };
-                                entity.chooseDirection(fleeTarget);
-                            }
-                            else if (closestDistance < attackRange) {
-                                // 2. Distance idéale -> ERRER (WANDER)
-                                entity.chooseDirection(nullptr);
-                            }
-                            else {
-                                // 3. Hors de portée -> AVANCER
-                                entity.chooseDirection(target);
-                            }
-
-                        } else {
-                            // *** COMPORTEMENT MELEE : ARRÊT ET FRAPPE ***
-                            if (closestDistance < attackRange) {
-                                // 1. À portée -> S'ARRÊTER
-                                int stopTarget[2] = {entity.getX(), entity.getY()};
-                                entity.chooseDirection(stopTarget);
-                            } else {
-                                // 2. Hors de portée -> AVANCER
-                                entity.chooseDirection(target);
-                            }
-                        }
-
-                    } else {
-                        // Ennemi hors de vue -> Mouvement aléatoire
-                        entity.chooseDirection(nullptr);
-                    }
-
-                    // B. TIR/ATTAQUE
-                    if (closestDistance < attackRange) {
-                        Uint32 currentTime = SDL_GetTicks();
-
-                        if (lastShotTime.find(entity.getName()) == lastShotTime.end() ||
-                            currentTime > lastShotTime[entity.getName()] + cooldown) {
-
-                        if (isRanged) {
-                            // --- COMBAT A DISTANCE (MODIFIÉ : Utilise les gènes) ---
-                            Projectile newP(
-                                    entity.getX(), entity.getY(),
-                                    closestEnemy->getX(), closestEnemy->getY(),
-                                    entity.getProjectileSpeed(), // Gène
-                                    damage,
-                                    attackRange,
-                                    entity.getColor(),
-                                    entity.getProjectileRadius(), // Gène
-                                    entity.getName()
-                            );
-                            projectiles.push_back(newP);
-                        } else {
-                            // --- COMBAT CORPS A CORPS (Coup direct) ---
-                            closestEnemy->takeDamage(damage);
-                        }
-
-                            lastShotTime[entity.getName()] = currentTime;
-                        }
-                    }
-                } else {
-                    entity.chooseDirection(nullptr);
-                }
+            // --- NOUVEAU : Dessin du panneau de contrôle ---
+            if (controlPanelCurrentX > (float)-CONTROL_PANEL_WIDTH) {
+                drawControlPanel(graphics.getRenderer(), (int)controlPanelCurrentX);
             }
 
-            // 2. MOUVEMENT et CORRECTION DES COLLISIONS
-            for (auto &entity : entities) {
-                entity.update();
+            // --- NOUVEAU : Dessin de l'icône (toujours au-dessus) ---
+            if (settingsIconTexture) {
+                // 1. Dessiner le fond arrondi plus foncé
+                roundedBoxRGBA(graphics.getRenderer(),
+                               settingsIconRect.x, settingsIconRect.y,
+                               settingsIconRect.x + settingsIconRect.w, settingsIconRect.y + settingsIconRect.h,
+                               8, // Rayon d'arrondi
+                               45, 45, 45, 255); // Couleur foncée
+
+                // 2. Dessiner l'icône par-dessus
+                SDL_RenderCopy(graphics.getRenderer(), settingsIconTexture, NULL, &settingsIconRect);
             }
-
-            for (auto &entity : entities) {
-                for (auto &other : entities) {
-                    if (&entity != &other && other.getIsAlive()) {
-                        int dx = entity.getX() - other.getX();
-                        int dy = entity.getY() - other.getY();
-
-                        float distance = std::sqrt((float)dx * dx + (float)dy * dy);
-                        int minDistance = entity.getRad() + other.getRad();
-
-                        if (distance < minDistance) {
-                            float overlap = minDistance - distance;
-                            float separationFactor = 0.5f;
-                            float separationDistance = overlap * separationFactor;
-
-                            float normX = (distance > 0) ? dx / distance : 1.0f;
-                            float normY = (distance > 0) ? dy / distance : 0.0f;
-
-                            entity.setX(entity.getX() + static_cast<int>(normX * separationDistance));
-                            entity.setY(entity.getY() + static_cast<int>(normY * separationDistance));
-                        }
-                    }
-                }
-            }
-
-            // 3. Mise à jour et Collision Projectile-Entité
-            projectiles.erase(
-                    std::remove_if(projectiles.begin(), projectiles.end(), [&](Projectile& proj) {
-                        proj.update();
-                        if (!proj.isAlive()) return true;
-
-                        for (auto &entity : entities) {
-                            if (entity.getIsAlive()) {
-                                // Empêche le suicide
-                                if (entity.getName() == proj.getShooterName()) continue;
-
-                                int dx = proj.getX() - entity.getX();
-                                int dy = proj.getY() - entity.getY();
-                                float distance = std::sqrt((float)dx * dx + (float)dy * dy);
-
-                                if (distance < proj.getRadius() + entity.getRad()) {
-                                    entity.setHealth(entity.getHealth() - proj.getDamage());
-                                    if (entity.getHealth() <= 0 && entity.getIsAlive()) {
-                                        entity.die();
-                                    }
-                                    return true;
-                                }
-                            }
-                        }
-                        return false;
-                    }),
-                    projectiles.end()
-            );
-
-            // 4. Dessin des entités et des projectiles
-            for (auto &entity : entities) {
-                entity.draw(graphics.getRenderer());
-            }
-
-            for (auto &proj : projectiles) {
-                proj.draw(graphics.getRenderer());
-            }
-
-            // 5. Suppression des entités mortes
-            entities.erase(
-                    std::remove_if(entities.begin(), entities.end(), [](const Entity &entity) {
-                        return !entity.getIsAlive();
-                    }),
-                    entities.end()
-            );
 
             // Afficher le rendu
             SDL_RenderPresent(graphics.getRenderer());
@@ -290,30 +221,44 @@ int main() {
     return 0;
 }
 
-// --- DÉFINITION DE LA FONCTION D'INITIALISATION DE LA SIMULATION ---
-std::vector<Entity> initializeSimulation(int maxEntities) {
-    std::vector<Entity> newEntities;
-    std::srand(std::time(0));
+// --- NOUVEAU : Implémentation du panneau de contrôle ---
+namespace {
+    void drawControlPanel(SDL_Renderer* renderer, int panelX) {
+        // 1. Fond du panneau
+        SDL_Rect panelRect = {panelX, 0, CONTROL_PANEL_WIDTH, WINDOW_SIZE_HEIGHT};
+        SDL_SetRenderDrawColor(renderer, 30, 30, 30, 220); // Gris foncé
+        SDL_RenderFillRect(renderer, &panelRect);
 
-    const int RANGED_COUNT = maxEntities / 3;
+        // 2. Définitions
+        int x = panelX + 10; // Marge intérieure
+        int y = 60; // Commence sous l'icône
+        int buttonHeight = 40;
+        int buttonWidth = CONTROL_PANEL_WIDTH - 20;
+        int spacing = 15;
+        SDL_Color textColor = {255, 255, 255, 255};
+        SDL_Color buttonColor = {80, 80, 80, 255};
 
-    for (int i = 0; i < maxEntities; ++i) {
-        int randomRad = 10 + (std::rand() % 31);
-        int randomX = randomRad + (std::rand() % (WINDOW_SIZE_WIDTH - 2 * randomRad));
-        int randomY = randomRad + (std::rand() % (WINDOW_SIZE_HEIGHT - 2 * randomRad));
+        // Fonction d'aide pour dessiner un bouton
+        auto drawButton = [&](ControlButton& btn, const std::string& text) {
+            btn.text = text;
+            btn.rect = {x, y, buttonWidth, buttonHeight};
 
-        std::string name = "E" + std::to_string(i + 1);
-        SDL_Color color = Entity::generateRandomColor();
+            // Dessiner le fond du bouton
+            SDL_SetRenderDrawColor(renderer, buttonColor.r, buttonColor.g, buttonColor.b, 255);
+            SDL_RenderFillRect(renderer, &btn.rect);
 
-        bool isRangedGene;
-        if (i < RANGED_COUNT) {
-            isRangedGene = true;
-        } else {
-            isRangedGene = (std::rand() % 2 == 0);
-        }
+            // Dessiner le texte (centré)
+            stringRGBA(renderer, x + buttonWidth / 2 - (text.length() * 4), // Approximation du centrage
+                       y + buttonHeight / 2 - 5,
+                       text.c_str(), textColor.r, textColor.g, textColor.b, 255);
 
-        // Utilisation du constructeur à 6 arguments
-        newEntities.emplace_back(name, randomX, randomY, randomRad, color, isRangedGene);
+            y += buttonHeight + spacing; // Avancer pour le prochain bouton
+        };
+
+        // 3. Dessiner les boutons (met à jour les rects globaux)
+        drawButton(pauseButton, isPaused ? "Play" : "Pause");
+        drawButton(speedButton, "Speed: " + std::to_string(simulationSpeed) + "x");
+        drawButton(restartButton, "Restart Sim");
+        drawButton(debugButton, showDebug ? "Debug: ON" : "Debug: OFF");
     }
-    return newEntities;
 }
