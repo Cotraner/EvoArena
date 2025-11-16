@@ -10,29 +10,47 @@
 
 class Simulation {
 public:
+    // --- NOUVEAU : Statut de retour pour l'update ---
+    enum class SimUpdateStatus {
+        RUNNING,
+        FINISHED
+    };
+
     explicit Simulation(int maxEntities);
     ~Simulation();
 
     void handleEvent(const SDL_Event& event);
-    void update();
+    SimUpdateStatus update(int speedMultiplier, bool autoRestart);
     void render(SDL_Renderer* renderer, bool showDebug);
+    int getCurrentGeneration() const { return currentGeneration; }
+
+    void triggerManualRestart();
 
 private:
-    // État de la simulation
+    int currentGeneration = 0;
+    int maxEntities;
     std::vector<Entity> entities;
     std::vector<Projectile> projectiles;
     std::map<std::string, Uint32> lastShotTime;
-    Entity* selectedEntity;
+    std::map<std::string, Entity> genealogyArchive;
+    Entity* selectedLivingEntity;
+    std::vector<Entity> inspectionStack;
 
-    // --- NOUVEAU : État de l'animation du panneau ---
+    // --- NOUVEAU : Stocke les derniers survivants ---
+    std::vector<Entity> lastSurvivors;
+
     float panelTargetX;
     float panelCurrentX;
+    SDL_Rect panelParent1_rect{};
+    SDL_Rect panelParent2_rect{};
+    SDL_Rect panelBack_rect{};
 
     // Fonctions d'aide privées
-    void initialize(int maxEntities);
+    void initialize(int initialEntityCount);
+    void triggerReproduction(const std::vector<Entity>& parents);
     void drawStatsPanel(SDL_Renderer* renderer, int panelX);
-    void updateLogic();
-    void updatePhysics();
+    void updateLogic(int speedMultiplier);
+    void updatePhysics(int speedMultiplier);
     void updateProjectiles();
     void cleanupDead();
 };

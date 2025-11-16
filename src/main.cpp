@@ -15,6 +15,11 @@ enum GameState {
     SIMULATION
 };
 
+enum SimRunState {
+    RUNNING, // La simulation est active
+    POST_COMBAT // La simulation est terminée, en attente
+};
+
 // --- NOUVEAU : Structure simple pour les boutons du panneau ---
 struct ControlButton {
     SDL_Rect rect;
@@ -25,8 +30,11 @@ struct ControlButton {
 namespace {
     // État de la simulation
     bool isPaused = false;
-    int simulationSpeed = 1; // 1, 2, ou 5
+    int simulationSpeed = 1; // 1, 2, 5 ou 10
     bool showDebug = false; // Pour les rayons de vision
+
+    SimRunState currentSimRunState = RUNNING;
+    bool autoRestart = false; // Le "auto start"
 
     // État du panneau
     bool isControlPanelVisible = false;
@@ -43,9 +51,14 @@ namespace {
     ControlButton speedButton;
     ControlButton restartButton;
     ControlButton debugButton;
+    ControlButton autoRestartButton;
+    ControlButton manualRestartButton;
+
+    const SDL_Color disabledButtonColor = {40, 40, 40, 255};
+    const SDL_Color disabledTextColor = {100, 100, 100, 255};
 
     // Fonction d'aide pour dessiner le panneau
-    void drawControlPanel(SDL_Renderer* renderer, int panelX);
+    void drawControlPanel(SDL_Renderer* renderer, int panelX, int currentGen);
 }
 
 
@@ -148,6 +161,9 @@ int main() {
                         } else if (SDL_PointInRect(&mousePoint, &speedButton.rect)) {
                             if (simulationSpeed == 1) simulationSpeed = 2;
                             else if (simulationSpeed == 2) simulationSpeed = 5;
+                            else if (simulationSpeed == 5) simulationSpeed = 10;
+                            else if (simulationSpeed == 10) simulationSpeed = 50;
+                            else if (simulationSpeed == 50) simulationSpeed = 100;
                             else simulationSpeed = 1;
                             clickHandled = true;
                         } else if (SDL_PointInRect(&mousePoint, &restartButton.rect)) {
@@ -158,6 +174,18 @@ int main() {
                             clickHandled = true;
                         } else if (SDL_PointInRect(&mousePoint, &debugButton.rect)) {
                             showDebug = !showDebug;
+                            clickHandled = true;
+                        }
+                        else if (SDL_PointInRect(&mousePoint, &autoRestartButton.rect)) {
+                            autoRestart = !autoRestart;
+                            clickHandled = true;
+                        }
+                        else if (SDL_PointInRect(&mousePoint, &manualRestartButton.rect)) {
+                            // Ne fonctionne que si la simulation est arrêtée
+                            if (currentSimRunState == POST_COMBAT) {
+                                simulation->triggerManualRestart(); // Demande à la Sim de se relancer
+                                currentSimRunState = RUNNING; // Repasse en mode RUNNING
+                            }
                             clickHandled = true;
                         }
                     }
@@ -179,10 +207,17 @@ int main() {
         }
         else if (currentState == SIMULATION) {
 
-            // --- NOUVEAU : Logique de Pause/Vitesse ---
-            if (!isPaused) {
+            if (!isPaused && currentSimRunState == RUNNING) {
                 for (int i = 0; i < simulationSpeed; ++i) {
-                    simulation->update();
+                    // Passe l'état 'autoRestart' à la simulation
+                    Simulation::SimUpdateStatus status = simulation->update(simulationSpeed, autoRestart);
+
+                    // Si la simulation dit qu'elle a fini
+                    if (status == Simulation::SimUpdateStatus::FINISHED) {
+                        currentSimRunState = POST_COMBAT; // Arrêter la boucle d'update
+                        isControlPanelVisible = true; // Ouvrir le panneau
+                        break; // Sortir de la boucle for (vitesse)
+                    }
                 }
             }
 
@@ -192,10 +227,9 @@ int main() {
 
             // --- MODIFIÉ : Passe l'état de debug ---
             simulation->render(graphics.getRenderer(), showDebug);
-
-            // --- NOUVEAU : Dessin du panneau de contrôle ---
+            int genNum = simulation ? simulation->getCurrentGeneration() : 0;
             if (controlPanelCurrentX > (float)-CONTROL_PANEL_WIDTH) {
-                drawControlPanel(graphics.getRenderer(), (int)controlPanelCurrentX);
+                drawControlPanel(graphics.getRenderer(), (int)controlPanelCurrentX, genNum);
             }
 
             // --- NOUVEAU : Dessin de l'icône (toujours au-dessus) ---
@@ -221,44 +255,72 @@ int main() {
     return 0;
 }
 
-// --- NOUVEAU : Implémentation du panneau de contrôle ---
 namespace {
-    void drawControlPanel(SDL_Renderer* renderer, int panelX) {
-        // 1. Fond du panneau
+    void drawControlPanel(SDL_Renderer* renderer, int panelX, int currentGen) {
         SDL_Rect panelRect = {panelX, 0, CONTROL_PANEL_WIDTH, WINDOW_SIZE_HEIGHT};
-        SDL_SetRenderDrawColor(renderer, 30, 30, 30, 220); // Gris foncé
+        SDL_SetRenderDrawColor(renderer, 30, 30, 30, 220);
         SDL_RenderFillRect(renderer, &panelRect);
 
         // 2. Définitions
-        int x = panelX + 10; // Marge intérieure
-        int y = 60; // Commence sous l'icône
+        int x = panelX + 10;
+        int y = 60;
         int buttonHeight = 40;
         int buttonWidth = CONTROL_PANEL_WIDTH - 20;
         int spacing = 15;
         SDL_Color textColor = {255, 255, 255, 255};
         SDL_Color buttonColor = {80, 80, 80, 255};
+        SDL_Color titleColor = {150, 200, 255, 255};
 
         // Fonction d'aide pour dessiner un bouton
-        auto drawButton = [&](ControlButton& btn, const std::string& text) {
+        auto drawButton = [&](ControlButton& btn, const std::string& text, bool enabled = true) {
             btn.text = text;
             btn.rect = {x, y, buttonWidth, buttonHeight};
 
-            // Dessiner le fond du bouton
-            SDL_SetRenderDrawColor(renderer, buttonColor.r, buttonColor.g, buttonColor.b, 255);
+            // Choisir la couleur (activé/désactivé)
+            SDL_Color currentBtnColor = enabled ? buttonColor : disabledButtonColor;
+            SDL_Color currentTextColor = enabled ? textColor : disabledTextColor;
+
+            SDL_SetRenderDrawColor(renderer, currentBtnColor.r, currentBtnColor.g, currentBtnColor.b, 255);
             SDL_RenderFillRect(renderer, &btn.rect);
 
-            // Dessiner le texte (centré)
-            stringRGBA(renderer, x + buttonWidth / 2 - (text.length() * 4), // Approximation du centrage
+            stringRGBA(renderer, x + buttonWidth / 2 - (text.length() * 4),
                        y + buttonHeight / 2 - 5,
-                       text.c_str(), textColor.r, textColor.g, textColor.b, 255);
+                       text.c_str(), currentTextColor.r, currentTextColor.g, currentTextColor.b, 255);
 
-            y += buttonHeight + spacing; // Avancer pour le prochain bouton
+            y += buttonHeight + spacing;
         };
-
-        // 3. Dessiner les boutons (met à jour les rects globaux)
+        y += 20;
+        stringRGBA(renderer, x, y, "--- Settings ---", titleColor.r, titleColor.g, titleColor.b, 255);
+        y += 25;
+        // 3. Dessiner les boutons (Contrôles Généraux)
         drawButton(pauseButton, isPaused ? "Play" : "Pause");
         drawButton(speedButton, "Speed: " + std::to_string(simulationSpeed) + "x");
-        drawButton(restartButton, "Restart Sim");
         drawButton(debugButton, showDebug ? "Debug: ON" : "Debug: OFF");
+
+        y += 20;
+        stringRGBA(renderer, x, y, "--- Simulation ---", titleColor.r, titleColor.g, titleColor.b, 255);
+        y += 25;
+        //Numéro de la génération
+        stringRGBA(renderer, x, y, ("Generation: " + std::to_string(currentGen)).c_str(), textColor.r, textColor.g, textColor.b, 255);
+        y+=20;
+        std::string statusText;
+        if (isPaused) statusText = "Status: Paused";
+        else if (currentSimRunState == RUNNING) statusText = "Status: Running...";
+        else statusText = "Status: Generation Complete";
+        stringRGBA(renderer, x, y, statusText.c_str(), textColor.r, textColor.g, textColor.b, 255);
+        y += 25;
+
+
+        // Bouton Auto Restart
+        std::string autoText = autoRestart ? "Auto Restart: ON" : "Auto Restart: OFF";
+        drawButton(autoRestartButton, autoText);
+
+        // Bouton Manual Relaunch (activé seulement si en POST_COMBAT)
+        bool manualEnabled = (currentSimRunState == POST_COMBAT);
+        drawButton(manualRestartButton, "Relaunch (Survivors)", manualEnabled);
+
+        // Bouton Restart (Gen 0)
+        y += 20; // Espacement
+        drawButton(restartButton, "Restart (Gen 0)");
     }
 }

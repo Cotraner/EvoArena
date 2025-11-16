@@ -42,7 +42,7 @@ void Entity::calculateDerivedStats() {
     sizeBias = std::clamp(sizeBias, 0.0f, 1.0f);
 
     this->armor = sizeBias * 0.60f; // 0% à 60% d'armure
-    this->regenAmount = (this->speed >= 4) ? 1 : 0; // 1 regen si rapide
+    this->regenAmount = (this->speed >= 4) ? 0 : 0; // 1 regen si rapide
 
 
     // --- PARTIE 2 : STATS D'ARME (Basées sur 'weaponGene' ou 'rad') ---
@@ -88,10 +88,13 @@ void Entity::calculateDerivedStats() {
 }
 
 
-// --- CONSTRUCTEUR (MODIFIÉ) ---
-Entity::Entity(std::string name, int x, int y, int rad, SDL_Color color, bool isRangedGene):
+Entity::Entity(std::string name, int x, int y, int rad, SDL_Color color, bool isRangedGene,
+               int generation, std::string p1_name, std::string p2_name):
         x(x), y(y), rad(rad), color(color), name(std::move(name)),
-        isRanged(isRangedGene), weaponGene(std::rand() % 101) // Initialise le gène d'arme (0-100)
+        isRanged(isRangedGene), weaponGene(std::rand() % 101), // Gène d'arme (0-100)
+        generation(generation), // --- NOUVEAU ---
+        parent1_name(std::move(p1_name)), // --- NOUVEAU ---
+        parent2_name(std::move(p2_name)) // --- NOUVEAU ---
 {
 
     direction[0] = 0;
@@ -107,9 +110,8 @@ Entity::Entity(std::string name, int x, int y, int rad, SDL_Color color, bool is
     // Initialise les timers
     Uint32 startTime = SDL_GetTicks();
     lastRegenTick = startTime - (std::rand() % REGEN_COOLDOWN_MS);
-    lastStaminaUseTick = startTime; // Peut se régénérer immédiatement
+    lastStaminaUseTick = startTime;
 
-    // Calcule TOUTES les stats (corps + arme)
     calculateDerivedStats();
 }
 
@@ -163,46 +165,55 @@ void Entity::draw(SDL_Renderer* renderer, bool showDebug) {
 }
 
 // --- FONCTION UPDATE (MODIFIÉE POUR STAMINA) ---
-void Entity::update() {
+void Entity::update(int speedMultiplier) {
     if (!isAlive) return;
 
     Uint32 currentTime = SDL_GetTicks();
 
+    // --- MODIFIÉ : Divise le timer de régénération ---
+    Uint32 effectiveRegenCooldown = (speedMultiplier > 0) ? (REGEN_COOLDOWN_MS / speedMultiplier) : REGEN_COOLDOWN_MS;
+
     // 1. Régénération de la santé
     if (regenAmount > 0 && health < maxHealth) {
-        if (currentTime > lastRegenTick + REGEN_COOLDOWN_MS) {
-            health += regenAmount;
+        if (currentTime > lastRegenTick + effectiveRegenCooldown) {
+            health += regenAmount; // Le *montant* de regen ne change pas
             if (health > maxHealth) health = maxHealth;
             lastRegenTick = currentTime;
         }
     }
 
-    // *** NOUVEAU : 2. Régénération et consommation de la Stamina ***
+    // --- MODIFIÉ : Divise le timer de stamina ---
+    Uint32 effectiveStaminaDelay = (speedMultiplier > 0) ? (STAMINA_REGEN_DELAY_MS / speedMultiplier) : STAMINA_REGEN_DELAY_MS;
+
+    // 2. Régénération et consommation de la Stamina
     if (isFleeing) {
         // Consommer de la stamina en fuyant
+        // Ce coût est "par update". Comme update() est appelé N fois,
+        // la stamina se videra N fois plus vite, ce qui est correct.
         if (stamina > 0) {
             stamina -= STAMINA_FLEE_COST_PER_FRAME;
-            lastStaminaUseTick = currentTime; // Retarde la régénération
+            lastStaminaUseTick = currentTime;
             if (stamina < 0) stamina = 0;
         } else {
-            isFleeing = false; // Ne peut plus fuir
+            isFleeing = false;
         }
     } else {
         // Régénérer la stamina si le délai est passé
-        if (stamina < maxStamina && currentTime > lastStaminaUseTick + STAMINA_REGEN_DELAY_MS) {
-            stamina += STAMINA_REGEN_RATE;
+        if (stamina < maxStamina && currentTime > lastStaminaUseTick + effectiveStaminaDelay) {
+            stamina += STAMINA_REGEN_RATE; // Le *montant* de regen ne change pas
             if (stamina > maxStamina) stamina = maxStamina;
         }
     }
 
-
-    // 3. Vérification de la mort (au cas où, bien que géré par takeDamage)
+    // 3. Vérification de la mort
     if (health <= 0) {
         die();
         return;
     }
 
     // 4. Logique de mouvement (inchangée)
+    // Le 'speed' est "par update". Comme update() est appelé N fois,
+    // le mouvement est N fois plus rapide, ce qui est correct.
     if (direction[0] == 0 && direction[1] == 0) {
         chooseDirection();
     }
