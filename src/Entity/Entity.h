@@ -109,7 +109,6 @@ private:
     int rad;
     bool isRanged;
     int weaponGene;
-    float armor = 0.0f;
 
     // --- STATS DÉRIVÉES (Arme) ---
     int damage;
@@ -118,6 +117,7 @@ private:
     int projectileSpeed;
     int projectileRadius;
     int staminaAttackCost;
+    float armor = 0.0f;
 
     // --- États de Stamina ---
     Uint32 lastStaminaUseTick = 0;

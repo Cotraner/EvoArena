@@ -28,7 +28,7 @@ private:
     SDL_Renderer* renderer;
     SDL_Texture* background = nullptr;
     SDL_Texture* menuBackgroundTexture = nullptr;
-    SDL_Texture* settingsIconTexture = nullptr; // *** NOUVEAU ***
+    SDL_Texture* settingsIconTexture = nullptr;
 };
 
 
