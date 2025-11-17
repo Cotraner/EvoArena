@@ -38,7 +38,7 @@ private:
     bool alive = true;
     SDL_Color color;
     int radius;
-    std::string shooterName; // *** AJOUTÉ ***
+    std::string shooterName;
 };
 
 
