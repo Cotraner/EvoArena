@@ -89,29 +89,30 @@ void Entity::calculateDerivedStats() {
 
 
 Entity::Entity(std::string name, int x, int y, int rad, SDL_Color color, bool isRangedGene,
-               int generation, std::string p1_name, std::string p2_name):
+               int generation, std::string p1_name, std::string p2_name,
+               int weaponGene, float kiteRatioGene): // Gènes reçus
         x(x), y(y), rad(rad), color(color), name(std::move(name)),
-        isRanged(isRangedGene), weaponGene(std::rand() % 101), // Gène d'arme (0-100)
-        generation(generation), // --- NOUVEAU ---
-        parent1_name(std::move(p1_name)), // --- NOUVEAU ---
-        parent2_name(std::move(p2_name)) // --- NOUVEAU ---
+        isRanged(isRangedGene),
+        weaponGene(weaponGene), // <-- CORRIGÉ : utilise le gène hérité
+        generation(generation),
+        parent1_name(std::move(p1_name)),
+        parent2_name(std::move(p2_name)),
+        kite_ratio_gene(kiteRatioGene) // <-- NOUVEAU : utilise le gène hérité
 {
 
     direction[0] = 0;
     direction[1] = 0;
 
+    // ... (le reste du constructeur est inchangé) ...
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis_angle(0, 2 * M_PI);
     float angle = dis_angle(gen);
     lastVelX = cos(angle);
     lastVelY = sin(angle);
-
-    // Initialise les timers
     Uint32 startTime = SDL_GetTicks();
     lastRegenTick = startTime - (std::rand() % REGEN_COOLDOWN_MS);
     lastStaminaUseTick = startTime;
-
     calculateDerivedStats();
 }
 

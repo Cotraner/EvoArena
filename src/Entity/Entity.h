@@ -16,7 +16,8 @@ class Entity {
 public:
     // --- CONSTRUCTEUR MODIFIÉ ---
     Entity(std::string name, int x, int y, int rad, SDL_Color color, bool isRangedGene,
-           int generation, std::string parent1_name, std::string parent2_name);
+           int generation, std::string parent1_name, std::string parent2_name,
+           int weaponGene, float kiteRatioGene);
     ~Entity();
 
     void update(int speedMultiplier);
@@ -58,6 +59,7 @@ public:
     int getGeneration() const { return generation; }
     std::string getParent1Name() const { return parent1_name; }
     std::string getParent2Name() const { return parent2_name; }
+    float getKiteRatio() const { return kite_ratio_gene; }
 
     // --- GETTERS D'ARMES ---
     [[nodiscard]] bool getIsRanged() const { return isRanged; } // Corrigé (c'était [[is_ranged]])
@@ -110,6 +112,8 @@ private:
     bool isRanged;
     int weaponGene;
     float armor = 0.0f;
+
+    float kite_ratio_gene;
 
     // --- STATS DÉRIVÉES (Arme) ---
     int damage;

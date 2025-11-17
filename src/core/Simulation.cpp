@@ -14,6 +14,7 @@ namespace {
     const int MUTATION_CHANCE_PERCENT = 5; //
     const int RAD_MUTATION_AMOUNT = 3; // +- 3
     const int GENE_MUTATION_AMOUNT = 10; // +- 10
+    const float KITE_RATIO_MUTATION_AMOUNT = 0.1f;
 }
 
 // --- CONSTRUCTEUR ET INITIALISATION ---
@@ -55,11 +56,15 @@ void Simulation::initialize(int initialEntityCount) {
         std::string name = "G0-E" + std::to_string(i + 1);
         SDL_Color color = Entity::generateRandomColor();
 
+        int randomWeaponGene = std::rand() % 101; // Gène 0-100
+        float randomKiteRatio = (10 + (std::rand() % 91)) / 100.0f;
+
         bool isRangedGene = (i < RANGED_COUNT) ? true : (std::rand() % 2 == 0);
 
         // Appel au constructeur modifié pour la Gen 0
         entities.emplace_back(name, randomX, randomY, randomRad, color, isRangedGene,
-                              0, "NONE", "NONE");
+                              0, "NONE", "NONE",
+                              randomWeaponGene, randomKiteRatio);
     }
 }
 
@@ -83,7 +88,17 @@ void Simulation::triggerReproduction(const std::vector<Entity> &parents) {
     for (int i = 0; i < maxEntities; ++i) {
         // 1. Sélection des parents
         const Entity& parent1 = parents[std::rand() % parents.size()];
-        const Entity& parent2 = parents[std::rand() % parents.size()];
+
+        const Entity* parent2_ptr = &parents[std::rand() % parents.size()];
+
+        // S'il y a plus d'un parent, s'assurer qu'ils sont différents
+        if (parents.size() > 1) {
+            while (parent1.getName() == parent2_ptr->getName()) {
+                // Re-tirer le parent 2
+                parent2_ptr = &parents[std::rand() % parents.size()];
+            }
+        }
+        const Entity& parent2 = *parent2_ptr;
 
         // 2. Enjambement (Crossover)
         float crossoverRad = (std::rand() % 101) / 100.0f;
@@ -94,6 +109,10 @@ void Simulation::triggerReproduction(const std::vector<Entity> &parents) {
 
         bool newIsRanged = (std::rand() % 2 == 0) ? parent1.getIsRanged() : parent2.getIsRanged();
 
+        // --- NOUVEAU : Crossover pour Kite Ratio ---
+        float crossoverKite = (std::rand() % 101) / 100.0f;
+        float newKiteRatio = (parent1.getKiteRatio() * crossoverKite) + (parent2.getKiteRatio() * (1.0f - crossoverKite));
+
         // 3. Mutation
         if ((std::rand() % 100) < MUTATION_CHANCE_PERCENT) {
             newRad += (std::rand() % (RAD_MUTATION_AMOUNT * 2 + 1)) - RAD_MUTATION_AMOUNT;
@@ -101,21 +120,26 @@ void Simulation::triggerReproduction(const std::vector<Entity> &parents) {
         if ((std::rand() % 100) < MUTATION_CHANCE_PERCENT) {
             newWeaponGene += (std::rand() % (GENE_MUTATION_AMOUNT * 2 + 1)) - GENE_MUTATION_AMOUNT;
         }
+        // --- NOUVEAU : Mutation pour Kite Ratio ---
+        if ((std::rand() % 100) < MUTATION_CHANCE_PERCENT) {
+            newKiteRatio += (std::rand() % 3 - 1) * KITE_RATIO_MUTATION_AMOUNT; // -0.1, 0, ou +0.1
+        }
 
         // Clamp values
         newRad = std::clamp(newRad, 10, 40);
         newWeaponGene = std::clamp(newWeaponGene, 0, 100);
+        newKiteRatio = std::clamp(newKiteRatio, 0.1f, 1.0f); // Reste entre 10% et 100%
 
         // 4. Création
         std::string newName = "G" + std::to_string(newGen) + "-E" + std::to_string(i + 1);
         int randomX = newRad + (std::rand() % (WINDOW_SIZE_WIDTH - 2 * newRad));
         int randomY = newRad + (std::rand() % (WINDOW_SIZE_HEIGHT - 2 * newRad));
-
-        // Utilise la couleur du parent 1 pour suivre la lignée
         SDL_Color newColor = parent1.getColor();
 
+        // Appel au constructeur modifié
         entities.emplace_back(newName, randomX, randomY, newRad, newColor, newIsRanged,
-                              newGen, parent1.getName(), parent2.getName());
+                              newGen, parent1.getName(), parent2.getName(),
+                              newWeaponGene, newKiteRatio); // Gènes passés
     }
 }
 
@@ -538,6 +562,9 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
     stringRGBA(renderer, x, y, "--- Weapon Genes ---", geneColor.r, geneColor.g, geneColor.b, 255);
     y += lineHeight;
     stringRGBA(renderer, x, y, ("Weapon Gene (0-100): " + std::to_string(entity.getWeaponGene())).c_str(), geneColor.r, geneColor.g, geneColor.b, 255);
+    y += lineHeight * 1.5;
+
+    stringRGBA(renderer, x, y, ("Kite Ratio: " + float_to_string(entity.getKiteRatio(), 2)).c_str(), geneColor.r, geneColor.g, geneColor.b, 255);
     y += lineHeight * 1.5;
 
     // --- Stats (Arme) ---
