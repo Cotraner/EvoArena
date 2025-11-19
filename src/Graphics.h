@@ -31,5 +31,4 @@ private:
     SDL_Texture* settingsIconTexture = nullptr;
 };
 
-
 #endif //EVOARENA_GRAPHICS_H
