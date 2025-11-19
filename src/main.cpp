@@ -294,8 +294,8 @@ std::vector<Entity> initializeSimulation(int maxEntities) {
 
     for (int i = 0; i < maxEntities; ++i) {
         int randomRad = 10 + (std::rand() % 31);
-        int randomX = randomRad + (std::rand() % (WINDOW_SIZE_WIDTH - 2 * randomRad));
-        int randomY = randomRad + (std::rand() % (WINDOW_SIZE_HEIGHT - 2 * randomRad));
+        int randomX = randomRad + (std::rand() % (WINDOW_WIDTH - 2 * randomRad));
+        int randomY = randomRad + (std::rand() % (WINDOW_HEIGHT - 2 * randomRad));
 
         std::string name = "E" + std::to_string(i + 1);
         SDL_Color color = Entity::generateRandomColor();
