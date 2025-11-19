@@ -32,6 +32,8 @@ public:
     MenuAction handleEvents(const SDL_Event& event);
     void draw(int maxEntities); // Affiche le nombre de cellules
 
+    void updateLayout();
+
     // État du menu
     enum ScreenState {
         MAIN_MENU,

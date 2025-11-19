@@ -39,7 +39,7 @@ void Projectile::update() {
     }
 
     // Vérifier si le projectile sort de l'écran
-    if (x < 0 || x > WINDOW_SIZE_WIDTH || y < 0 || y > WINDOW_SIZE_HEIGHT) {
+    if (x < 0 || x > WINDOW_WIDTH || y < 0 || y > WINDOW_HEIGHT) {
         alive = false;
     }
 }

@@ -6,8 +6,12 @@
 #include <vector>
 #include <map>
 #include <memory>
-#include <SDL2/SDL2_gfxPrimitives.h> // *** NOUVEAU : Requis pour stringRGBA ***
-#include <string> // *** NOUVEAU : Requis pour std::to_string ***
+#include <SDL2/SDL2_gfxPrimitives.h>
+#include <string>
+
+
+int WINDOW_WIDTH = 1280;
+int WINDOW_HEIGHT = 720;
 
 // --- DÉFINITION DE L'ÉTAT DU JEU ---
 enum GameState {
@@ -66,6 +70,14 @@ namespace {
 
 int main() {
     Graphics graphics;
+    if (graphics.getRenderer()) {
+        SDL_GetRendererOutputSize(graphics.getRenderer(), &WINDOW_WIDTH, &WINDOW_HEIGHT);
+    }
+    if (WINDOW_WIDTH == 0 || WINDOW_HEIGHT == 0) {
+        WINDOW_WIDTH = 1280;
+        WINDOW_HEIGHT = 720;
+        SDL_SetWindowSize(graphics.getWindow(), 1280, 720); // Force une taille physique
+    }
 
     std::unique_ptr<Simulation> simulation = nullptr;
 
@@ -88,6 +100,9 @@ int main() {
     bool running = true;
 
     while (running) {
+        if (graphics.getRenderer()) {
+            SDL_GetRendererOutputSize(graphics.getRenderer(), &WINDOW_WIDTH, &WINDOW_HEIGHT);
+        }
 
         // --- NOUVEAU : Animation du panneau de contrôle (se produit toujours) ---
         controlPanelTargetX = isControlPanelVisible ? 0.0f : (float)-CONTROL_PANEL_WIDTH;
@@ -100,8 +115,15 @@ int main() {
 
         // GESTION DES ÉVÉNEMENTS
         while (SDL_PollEvent(&event)) {
+
             if (event.type == SDL_QUIT || (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) {
                 running = false;
+            }
+            else if (event.type == SDL_WINDOWEVENT) {
+                if (event.window.event == SDL_WINDOWEVENT_RESIZED ||
+                    event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+                    SDL_GetRendererOutputSize(graphics.getRenderer(), &WINDOW_WIDTH, &WINDOW_HEIGHT);
+                }
             }
 
             // GESTION DES ÉVÉNEMENTS DU MENU
@@ -257,7 +279,7 @@ int main() {
 
 namespace {
     void drawControlPanel(SDL_Renderer* renderer, int panelX, int currentGen) {
-        SDL_Rect panelRect = {panelX, 0, CONTROL_PANEL_WIDTH, WINDOW_SIZE_HEIGHT};
+        SDL_Rect panelRect = {panelX, 0, CONTROL_PANEL_WIDTH, WINDOW_HEIGHT};
         SDL_SetRenderDrawColor(renderer, 30, 30, 30, 220);
         SDL_RenderFillRect(renderer, &panelRect);
 

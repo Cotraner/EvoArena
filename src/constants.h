@@ -4,8 +4,8 @@
 #define EVOARENA_CONSTANTS_H
 //Definition of all constants we use in the project
 
-#define WINDOW_SIZE_WIDTH 1280
-#define WINDOW_SIZE_HEIGHT 660
+extern int WINDOW_WIDTH;
+extern int WINDOW_HEIGHT;
 
 
 #endif //EVOARENA_CONSTANTS_H

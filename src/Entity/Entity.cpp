@@ -246,16 +246,16 @@ void Entity::update(int speedMultiplier) {
     if (x < rad) {
         x = rad;
         collided = true;
-    } else if (x > WINDOW_SIZE_WIDTH - rad) {
-        x = WINDOW_SIZE_WIDTH - rad;
+    } else if (x > WINDOW_WIDTH - rad) {
+        x = WINDOW_WIDTH - rad;
         collided = true;
     }
 
     if (y < rad) {
         y = rad;
         collided = true;
-    } else if (y > WINDOW_SIZE_HEIGHT - rad) {
-        y = WINDOW_SIZE_HEIGHT - rad;
+    } else if (y > WINDOW_HEIGHT - rad) {
+        y = WINDOW_HEIGHT - rad;
         collided = true;
     }
 
@@ -329,8 +329,8 @@ void Entity::knockBack() {
     x -= static_cast<int>(lastVelX * KNOCKBACK_DISTANCE);
     y -= static_cast<int>(lastVelY * KNOCKBACK_DISTANCE);
 
-    x = std::clamp(x, rad, WINDOW_SIZE_WIDTH - rad);
-    y = std::clamp(y, rad, WINDOW_SIZE_HEIGHT - rad);
+    x = std::clamp(x, rad, WINDOW_WIDTH - rad);
+    y = std::clamp(y, rad, WINDOW_HEIGHT - rad);
 
     direction[0] = 0;
     direction[1] = 0;

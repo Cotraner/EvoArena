@@ -2,7 +2,8 @@
 #include <SDL2/SDL_image.h> // Assurez-vous que IMG_Load est disponible
 
 Graphics::Graphics(){
-    SDL_CreateWindowAndRenderer(WINDOW_SIZE_WIDTH, WINDOW_SIZE_HEIGHT, 0, &window, &renderer);
+    SDL_CreateWindowAndRenderer(0, 0, SDL_WINDOW_MAXIMIZED | SDL_WINDOW_RESIZABLE, &window, &renderer);
+    SDL_GetWindowSize(window, &WINDOW_WIDTH, &WINDOW_HEIGHT);
     SDL_SetWindowTitle(window, "EvoArena");
 
     //Fond vert

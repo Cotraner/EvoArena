@@ -23,8 +23,8 @@ Simulation::Simulation(int maxEntities) :
         maxEntities(maxEntities), // Stocke le max
         selectedLivingEntity(nullptr)
 {
-    panelCurrentX = (float)WINDOW_SIZE_WIDTH;
-    panelTargetX = (float)WINDOW_SIZE_WIDTH;
+    panelCurrentX = (float)WINDOW_WIDTH;
+    panelTargetX = (float)WINDOW_WIDTH;
     initialize(maxEntities); // Lance la Génération 0
 }
 
@@ -42,16 +42,16 @@ void Simulation::initialize(int initialEntityCount) {
     inspectionStack.clear(); // Vide la pile d'inspection
     selectedLivingEntity = nullptr;
 
-    panelCurrentX = (float)WINDOW_SIZE_WIDTH;
-    panelTargetX = (float)WINDOW_SIZE_WIDTH;
+    panelCurrentX = (float)WINDOW_WIDTH;
+    panelTargetX = (float)WINDOW_WIDTH;
 
     std::srand(std::time(0));
     const int RANGED_COUNT = initialEntityCount / 3;
 
     for (int i = 0; i < initialEntityCount; ++i) {
         int randomRad = 10 + (std::rand() % 31);
-        int randomX = randomRad + (std::rand() % (WINDOW_SIZE_WIDTH - 2 * randomRad));
-        int randomY = randomRad + (std::rand() % (WINDOW_SIZE_HEIGHT - 2 * randomRad));
+        int randomX = randomRad + (std::rand() % (WINDOW_WIDTH - 2 * randomRad));
+        int randomY = randomRad + (std::rand() % (WINDOW_HEIGHT - 2 * randomRad));
 
         std::string name = "G0-E" + std::to_string(i + 1);
         SDL_Color color = Entity::generateRandomColor();
@@ -132,8 +132,8 @@ void Simulation::triggerReproduction(const std::vector<Entity> &parents) {
 
         // 4. Création
         std::string newName = "G" + std::to_string(newGen) + "-E" + std::to_string(i + 1);
-        int randomX = newRad + (std::rand() % (WINDOW_SIZE_WIDTH - 2 * newRad));
-        int randomY = newRad + (std::rand() % (WINDOW_SIZE_HEIGHT - 2 * newRad));
+        int randomX = newRad + (std::rand() % (WINDOW_WIDTH - 2 * newRad));
+        int randomY = newRad + (std::rand() % (WINDOW_HEIGHT - 2 * newRad));
         SDL_Color newColor = parent1.getColor();
 
         // Appel au constructeur modifié
@@ -239,9 +239,9 @@ Simulation::SimUpdateStatus Simulation::update(int speedMultiplier, bool autoRes
 
     // --- Animation du panneau ---
     if (!inspectionStack.empty()) {
-        panelTargetX = (float)(WINDOW_SIZE_WIDTH - PANEL_WIDTH);
+        panelTargetX = (float)(WINDOW_WIDTH - PANEL_WIDTH);
     } else {
-        panelTargetX = (float)WINDOW_SIZE_WIDTH;
+        panelTargetX = (float)WINDOW_WIDTH;
     }
     if(selectedLivingEntity != nullptr && !selectedLivingEntity->getIsAlive()) {
         selectedLivingEntity = nullptr;
@@ -263,7 +263,7 @@ void Simulation::updateLogic(int speedMultiplier) {
         if (!entity.getIsAlive()) continue;
 
         Entity* closestEnemy = nullptr;
-        auto closestDistance = (float)(WINDOW_SIZE_WIDTH + WINDOW_SIZE_HEIGHT);
+        auto closestDistance = (float)(WINDOW_WIDTH + WINDOW_HEIGHT);
         for (auto &other : entities) {
             if (&entity != &other && other.getIsAlive()) {
                 int dx = entity.getX() - other.getX();
@@ -435,7 +435,7 @@ void Simulation::render(SDL_Renderer *renderer, bool showDebug) {
     }
 
     // 3. Dessiner le panneau (s'il est en cours d'affichage)
-    if (panelCurrentX < WINDOW_SIZE_WIDTH) {
+    if (panelCurrentX < WINDOW_WIDTH) {
         drawStatsPanel(renderer, static_cast<int>(panelCurrentX));
     }
 }
@@ -470,7 +470,7 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
 
 
     // 1. Fond du panneau
-    SDL_Rect panelRect = {panelX, 0, PANEL_WIDTH, WINDOW_SIZE_HEIGHT};
+    SDL_Rect panelRect = {panelX, 0, PANEL_WIDTH, WINDOW_HEIGHT};
     SDL_SetRenderDrawColor(renderer, 20, 20, 20, 200);
     SDL_RenderFillRect(renderer, &panelRect);
 
