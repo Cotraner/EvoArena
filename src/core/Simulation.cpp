@@ -15,6 +15,18 @@ namespace {
     const int RAD_MUTATION_AMOUNT = 3; // +- 3
     const int GENE_MUTATION_AMOUNT = 10; // +- 10
     const float KITE_RATIO_MUTATION_AMOUNT = 0.1f;
+
+    const float NEUTRAL_FLOAT = 0.0f;
+    const int NEUTRAL_INT = 0;
+
+    // Plages pour l'initialisation aléatoire simple (tirées du JSON)
+    const float FRAGILITY_MAX = 0.3f;
+    const float EFFICIENCY_MAX = 0.5f;
+    const float REGEN_MAX = 0.2f;
+    const float MYOPIA_MAX = 0.5f;
+    const float AIM_MAX = 15.0f;
+    const int FERTILITY_MAX_INT = 2;
+    const float AGING_MAX_FLOAT = 0.01f;
 }
 
 // --- CONSTRUCTEUR ET INITIALISATION ---
@@ -38,8 +50,8 @@ void Simulation::initialize(int initialEntityCount) {
     entities.clear();
     projectiles.clear();
     lastShotTime.clear();
-    genealogyArchive.clear(); // Vide l'historique
-    inspectionStack.clear(); // Vide la pile d'inspection
+    genealogyArchive.clear();
+    inspectionStack.clear();
     selectedLivingEntity = nullptr;
 
     panelCurrentX = (float)WINDOW_SIZE_WIDTH;
@@ -56,15 +68,39 @@ void Simulation::initialize(int initialEntityCount) {
         std::string name = "G0-E" + std::to_string(i + 1);
         SDL_Color color = Entity::generateRandomColor();
 
-        int randomWeaponGene = std::rand() % 101; // Gène 0-100
+        int randomWeaponGene = std::rand() % 101;
         float randomKiteRatio = (10 + (std::rand() % 91)) / 100.0f;
-
         bool isRangedGene = (i < RANGED_COUNT) ? true : (std::rand() % 2 == 0);
 
-        // Appel au constructeur modifié pour la Gen 0
+        // --- Initialisation des 7 Nouveaux Gènes à Neutre ---
+        float df = NEUTRAL_FLOAT;
+        float se = NEUTRAL_FLOAT;
+        float bhr = NEUTRAL_FLOAT;
+        float mf = NEUTRAL_FLOAT;
+        float ap = NEUTRAL_FLOAT;
+        int ff = NEUTRAL_INT;
+        float ar = NEUTRAL_FLOAT;
+
+        // Logique 50% Muté (Un seul gène activé)
+        if (std::rand() % 2 != 0) {
+            switch (std::rand() % 7) {
+                case 0: df = (float)(std::rand() % 101) / 100.0f * FRAGILITY_MAX; break;
+                case 1: se = (float)(std::rand() % 101) / 100.0f * EFFICIENCY_MAX; break;
+                case 2: bhr = (float)(std::rand() % 101) / 100.0f * REGEN_MAX; break;
+                case 3: mf = (float)(std::rand() % 101) / 100.0f * MYOPIA_MAX; break;
+                case 4: ap = (float)(std::rand() % 101) / 100.0f * AIM_MAX; break;
+                case 5: ff = (std::rand() % (FERTILITY_MAX_INT + 1)); break;
+                case 6: ar = (float)(std::rand() % 101) / 100.0f * AGING_MAX_FLOAT; break;
+            }
+        }
+
+
+        // Appel au constructeur complet (18 arguments)
         entities.emplace_back(name, randomX, randomY, randomRad, color, isRangedGene,
                               0, "NONE", "NONE",
-                              randomWeaponGene, randomKiteRatio);
+                              randomWeaponGene, randomKiteRatio,
+                // NOUVEAUX GÈNES : (7 arguments)
+                              df, se, bhr, mf, ap, ff, ar);
     }
 }
 
@@ -75,6 +111,13 @@ void Simulation::triggerReproduction(const std::vector<Entity> &parents) {
     lastShotTime.clear();
     inspectionStack.clear();
     selectedLivingEntity = nullptr;
+    float newDF = 0.0f;
+    float newSE = 0.0f;
+    float newBHR = 0.0f;
+    float newMF = 0.0f;
+    float newAP = 0.0f;
+    int newFF = 0;
+    float newAR = 0.0f;
 
     // Si 'parents' est vide (ex: redémarrage), repartir de zéro
     if (parents.empty()) {
@@ -87,9 +130,9 @@ void Simulation::triggerReproduction(const std::vector<Entity> &parents) {
 
     for (int i = 0; i < maxEntities; ++i) {
         // 1. Sélection des parents
-        const Entity& parent1 = parents[std::rand() % parents.size()];
+        const Entity &parent1 = parents[std::rand() % parents.size()];
 
-        const Entity* parent2_ptr = &parents[std::rand() % parents.size()];
+        const Entity *parent2_ptr = &parents[std::rand() % parents.size()];
 
         // S'il y a plus d'un parent, s'assurer qu'ils sont différents
         if (parents.size() > 1) {
@@ -98,20 +141,22 @@ void Simulation::triggerReproduction(const std::vector<Entity> &parents) {
                 parent2_ptr = &parents[std::rand() % parents.size()];
             }
         }
-        const Entity& parent2 = *parent2_ptr;
+        const Entity &parent2 = *parent2_ptr;
 
         // 2. Enjambement (Crossover)
         float crossoverRad = (std::rand() % 101) / 100.0f;
-        int newRad = (int)(parent1.getRad() * crossoverRad + parent2.getRad() * (1.0f - crossoverRad));
+        int newRad = (int) (parent1.getRad() * crossoverRad + parent2.getRad() * (1.0f - crossoverRad));
 
         float crossoverGene = (std::rand() % 101) / 100.0f;
-        int newWeaponGene = (int)(parent1.getWeaponGene() * crossoverGene + parent2.getWeaponGene() * (1.0f - crossoverGene));
+        int newWeaponGene = (int) (parent1.getWeaponGene() * crossoverGene +
+                                   parent2.getWeaponGene() * (1.0f - crossoverGene));
 
         bool newIsRanged = (std::rand() % 2 == 0) ? parent1.getIsRanged() : parent2.getIsRanged();
 
         // --- NOUVEAU : Crossover pour Kite Ratio ---
         float crossoverKite = (std::rand() % 101) / 100.0f;
-        float newKiteRatio = (parent1.getKiteRatio() * crossoverKite) + (parent2.getKiteRatio() * (1.0f - crossoverKite));
+        float newKiteRatio =
+                (parent1.getKiteRatio() * crossoverKite) + (parent2.getKiteRatio() * (1.0f - crossoverKite));
 
         // 3. Mutation
         if ((std::rand() % 100) < MUTATION_CHANCE_PERCENT) {
@@ -137,14 +182,15 @@ void Simulation::triggerReproduction(const std::vector<Entity> &parents) {
         SDL_Color newColor = parent1.getColor();
 
         // Appel au constructeur modifié
-        entities.emplace_back(newName, randomX, randomY, newRad, newColor, newIsRanged,
-                              newGen, parent1.getName(), parent2.getName(),
-                              newWeaponGene, newKiteRatio); // Gènes passés
+        entities.emplace_back(
+                newName, randomX, randomY, newRad, newColor, newIsRanged,
+                newGen, parent1.getName(), parent2.getName(),
+                newWeaponGene, newKiteRatio, newDF, newSE, newBHR, newMF, newAP, newFF, newAR
+        );
     }
 }
 
 void Simulation::triggerManualRestart() {
-    // Utilise les survivants stockés pour lancer la prochaine génération
     triggerReproduction(lastSurvivors);
 }
 
@@ -443,38 +489,71 @@ void Simulation::render(SDL_Renderer *renderer, bool showDebug) {
 // --- drawStatsPanel (MODIFIÉ) ---
 void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
 
+    // Définition d'un utilitaire lambda pour la conversion float/string
+    auto float_to_string = [](float val, int precision = 2) {
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(precision) << val;
+        return ss.str();
+    };
+
     // Si la pile est vide, ne rien dessiner
     if (inspectionStack.empty()) return;
 
-    // --- DÉBUT DE LA CORRECTION ---
-
     const Entity* entityToDisplay = nullptr;
 
-    // Si nous inspectons l'entité vivante sélectionnée (la base de la pile ET elle est sélectionnée)
+    // Détermine si on affiche les stats en temps réel (entité vivante sélectionnée) ou une copie archivée.
     if (inspectionStack.size() == 1 && selectedLivingEntity != nullptr) {
-        // Nous utilisons le POINTEUR "live" pour obtenir les données en temps réel
         entityToDisplay = selectedLivingEntity;
     } else {
-        // Sinon (nous inspectons un ancêtre ou l'entité vivante est morte),
-        // nous utilisons la COPIE statique du sommet de la pile
         entityToDisplay = &inspectionStack.back();
     }
 
-    // (Sécurité au cas où, bien que cela ne devrait pas arriver)
     if (entityToDisplay == nullptr) return;
 
-    // 'entity' est maintenant une référence à la bonne source (soit "live", soit "copie")
+    // 'entity' est la référence constante aux données
     const Entity& entity = *entityToDisplay;
 
-    // --- FIN DE LA CORRECTION ---
 
+    // --- LOGIQUE D'IDENTIFICATION DU TRAIT DOMINANT ---
+    std::string dominantTrait = "Classique";
+    float maxTraitValue = 0.0f;
+
+    // On compare les valeurs des gènes par rapport à leur plage (Neutre est 0.0 pour la plupart)
+    if (entity.getDamageFragility() > maxTraitValue) {
+        maxTraitValue = entity.getDamageFragility();
+        dominantTrait = "Fragile";
+    }
+    if (entity.getStaminaEfficiency() > maxTraitValue) {
+        maxTraitValue = entity.getStaminaEfficiency();
+        dominantTrait = "Efficace";
+    }
+    if (entity.getBaseHealthRegen() > maxTraitValue) {
+        maxTraitValue = entity.getBaseHealthRegen();
+        dominantTrait = "Régénérateur";
+    }
+    if (entity.getMyopiaFactor() > maxTraitValue) {
+        maxTraitValue = entity.getMyopiaFactor();
+        dominantTrait = "Myope";
+    }
+    if (entity.getAimingPenalty() > maxTraitValue) {
+        maxTraitValue = entity.getAimingPenalty();
+        dominantTrait = "Maladroit";
+    }
+    if (entity.getAgingRate() > maxTraitValue) {
+        maxTraitValue = entity.getAgingRate();
+        dominantTrait = "Vieillissant";
+    }
+    // Traitement spécial pour le gène entier FertilityFactor
+    if (entity.getFertilityFactor() > 0) {
+        dominantTrait = "Fertile";
+    }
 
     // 1. Fond du panneau
     SDL_Rect panelRect = {panelX, 0, PANEL_WIDTH, WINDOW_SIZE_HEIGHT};
     SDL_SetRenderDrawColor(renderer, 20, 20, 20, 200);
     SDL_RenderFillRect(renderer, &panelRect);
 
-    // 2. Texte (Utilise 'entity' comme avant)
+    // 2. Définitions de style
     int x = panelX + 15;
     int y = 20;
     const int lineHeight = 18;
@@ -482,16 +561,9 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
     const SDL_Color statColor = {255, 255, 255, 255};
     const SDL_Color geneColor = {150, 200, 255, 255};
     const SDL_Color linkColor = {100, 100, 255, 255};
+    const SDL_Color impactColor = {255, 100, 100, 255};
 
-    auto float_to_string = [](float val, int precision = 2) {
-        std::stringstream ss;
-        ss << std::fixed << std::setprecision(precision) << val;
-        return ss.str();
-    };
-
-    // Bouton Retour
     if (inspectionStack.size() > 1) {
-        // ... (code inchangé)
         std::string backText = "< Back";
         panelBack_rect = {x, y, 70, 25};
         boxRGBA(renderer, panelBack_rect.x, panelBack_rect.y, panelBack_rect.x + panelBack_rect.w, panelBack_rect.y + panelBack_rect.h, 80, 80, 80, 255);
@@ -499,89 +571,141 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
         y += 40;
     }
 
-    // Affichage des stats
+    // --- BLOC 1 : STATS DE BASE ET GÉNÉALOGIE ---
     stringRGBA(renderer, x, y, ("ID: " + entity.getName()).c_str(), titleColor.r, titleColor.g, titleColor.b, 255);
     y += lineHeight * 1.5;
 
-    // --- MODIFIÉ : Simplification de la logique d'affichage des PV ---
-    // Si nous regardons le pointeur "live", il est vivant.
-    // Si nous regardons un ancêtre, il est mort (et n'est pas 'selectedLivingEntity')
+    // Santé et Stamina
     if (entityToDisplay == selectedLivingEntity) {
         stringRGBA(renderer, x, y, ("Health: " + std::to_string(entity.getHealth()) + "/" + std::to_string(entity.getMaxHealth())).c_str(), statColor.r, statColor.g, statColor.b, 255);
-        y += lineHeight;
     } else {
-        // C'est un ancêtre
         stringRGBA(renderer, x, y, "Health: (Deceased)", 150, 150, 150, 255);
-        y += lineHeight;
     }
-
+    y += lineHeight;
     stringRGBA(renderer, x, y, ("Stamina: " + std::to_string(entity.getStamina()) + "/" + std::to_string(entity.getMaxStamina())).c_str(), statColor.r, statColor.g, statColor.b, 255);
     y += lineHeight * 1.5;
 
-    // --- NOUVEAU : Généalogie ---
+    // Généalogie
     stringRGBA(renderer, x, y, "--- Genealogy ---", geneColor.r, geneColor.g, geneColor.b, 255);
     y += lineHeight;
     stringRGBA(renderer, x, y, ("Generation: " + std::to_string(entity.getGeneration())).c_str(), geneColor.r, geneColor.g, geneColor.b, 255);
     y += lineHeight;
 
-    std::string p1_name = entity.getParent1Name();
-    std::string p2_name = entity.getParent2Name();
-
-    // Lien Parent 1
-    panelParent1_rect = {x, y, 270, 15}; // Définir la zone cliquable
-    stringRGBA(renderer, x, y, ("Parent 1: " + p1_name).c_str(), linkColor.r, linkColor.g, linkColor.b, 255);
+    // Liens Parents (Assumant que les rects sont définis dans handleEvent)
+    panelParent1_rect = {x, y, 270, 15};
+    stringRGBA(renderer, x, y, ("Parent 1: " + entity.getParent1Name()).c_str(), linkColor.r, linkColor.g, linkColor.b, 255);
     y += lineHeight;
-
-    // Lien Parent 2
     panelParent2_rect = {x, y, 270, 15};
-    stringRGBA(renderer, x, y, ("Parent 2: " + p2_name).c_str(), linkColor.r, linkColor.g, linkColor.b, 255);
+    stringRGBA(renderer, x, y, ("Parent 2: " + entity.getParent2Name()).c_str(), linkColor.r, linkColor.g, linkColor.b, 255);
     y += lineHeight * 1.5;
 
 
-    // --- Gènes (Corps) ---
-    stringRGBA(renderer, x, y, "--- Body Genes ---", geneColor.r, geneColor.g, geneColor.b, 255);
-    y += lineHeight;
-    stringRGBA(renderer, x, y, ("Rad (Size): " + std::to_string(entity.getRad())).c_str(), geneColor.r, geneColor.g, geneColor.b, 255);
-    y += lineHeight;
-    stringRGBA(renderer, x, y, (std::string("Type: ") + (entity.getIsRanged() ? "Ranged" : "Melee")).c_str(), geneColor.r, geneColor.g, geneColor.b, 255);
-    y += lineHeight * 1.5;
-
-    // --- Stats (Corps) ---
+    // --- BLOC 2 : TRAIT DOMINANT ET CORPS ---
     stringRGBA(renderer, x, y, "--- Body Stats ---", statColor.r, statColor.g, statColor.b, 255);
+    y += lineHeight;
+
+    // AFFICHAGE DU TRAIT DOMINANT
+    stringRGBA(renderer, x, y, ("Dominant Trait: " + dominantTrait).c_str(), titleColor.r, titleColor.g, titleColor.b, 255);
+    y += lineHeight * 1.5;
+
+    stringRGBA(renderer, x, y, ("Rad (Size): " + std::to_string(entity.getRad())).c_str(), statColor.r, statColor.g, statColor.b, 255);
     y += lineHeight;
     stringRGBA(renderer, x, y, ("Speed: " + std::to_string(entity.getSpeed())).c_str(), statColor.r, statColor.g, statColor.b, 255);
     y += lineHeight;
     stringRGBA(renderer, x, y, ("Armor: " + float_to_string(entity.getArmor() * 100) + "%").c_str(), statColor.r, statColor.g, statColor.b, 255);
     y += lineHeight;
-    stringRGBA(renderer, x, y, ("Regen: " + std::to_string(entity.getRegenAmount()) + " HP/tick").c_str(), statColor.r, statColor.g, statColor.b, 255);
-    y += lineHeight;
     stringRGBA(renderer, x, y, ("Sight Radius: " + std::to_string(entity.getSightRadius())).c_str(), statColor.r, statColor.g, statColor.b, 255);
     y += lineHeight * 1.5;
 
-    // --- Gènes (Arme) ---
-    stringRGBA(renderer, x, y, "--- Weapon Genes ---", geneColor.r, geneColor.g, geneColor.b, 255);
-    y += lineHeight;
-    stringRGBA(renderer, x, y, ("Weapon Gene (0-100): " + std::to_string(entity.getWeaponGene())).c_str(), geneColor.r, geneColor.g, geneColor.b, 255);
-    y += lineHeight * 1.5;
 
+    // --- BLOC 3 : GÈNES BRUTS (Bio-Inspirés) ---
+    stringRGBA(renderer, x, y, "--- Genetic Traits ---", geneColor.r, geneColor.g, geneColor.b, 255);
+    y += lineHeight;
+    stringRGBA(renderer, x, y, (std::string("Type: ") + (entity.getIsRanged() ? "Ranged" : "Melee")).c_str(), geneColor.r, geneColor.g, geneColor.b, 255);
+    y += lineHeight;
+    stringRGBA(renderer, x, y, ("Weapon Gene: " + std::to_string(entity.getWeaponGene())).c_str(), geneColor.r, geneColor.g, geneColor.b, 255);
+    y += lineHeight;
     stringRGBA(renderer, x, y, ("Kite Ratio: " + float_to_string(entity.getKiteRatio(), 2)).c_str(), geneColor.r, geneColor.g, geneColor.b, 255);
     y += lineHeight * 1.5;
 
-    // --- Stats (Arme) ---
+    // --- BLOC 4 : STATS D'ARMEMENT ---
     stringRGBA(renderer, x, y, "--- Weapon Stats ---", statColor.r, statColor.g, statColor.b, 255);
     y += lineHeight;
     stringRGBA(renderer, x, y, ("Damage: " + std::to_string(entity.getDamage())).c_str(), statColor.r, statColor.g, statColor.b, 255);
     y += lineHeight;
     stringRGBA(renderer, x, y, ("Attack Range: " + std::to_string(entity.getAttackRange())).c_str(), statColor.r, statColor.g, statColor.b, 255);
     y += lineHeight;
-    stringRGBA(renderer, x, y, ("Attack Cooldown: " + std::to_string(entity.getAttackCooldown()) + " ms").c_str(), statColor.r, statColor.g, statColor.b, 255);
+    stringRGBA(renderer, x, y, ("Cooldown: " + std::to_string(entity.getAttackCooldown()) + " ms").c_str(), statColor.r, statColor.g, statColor.b, 255);
     y += lineHeight;
     stringRGBA(renderer, x, y, ("Stamina Cost: " + std::to_string(entity.getStaminaAttackCost())).c_str(), statColor.r, statColor.g, statColor.b, 255);
     y += lineHeight;
 
+
     if (entity.getIsRanged()) {
-        stringRGBA(renderer, x, y, ("Projectile Speed: " + std::to_string(entity.getProjectileSpeed())).c_str(), statColor.r, statColor.g, statColor.b, 255);
+        stringRGBA(renderer, x, y, ("Proj Speed: " + std::to_string(entity.getProjectileSpeed())).c_str(), statColor.r, statColor.g, statColor.b, 255);
         y += lineHeight;
-        stringRGBA(renderer, x, y, ("Projectile Radius: " + std::to_string(entity.getProjectileRadius())).c_str(), statColor.r, statColor.g, statColor.b, 255);
+        stringRGBA(renderer, x, y, ("Proj Radius: " + std::to_string(entity.getProjectileRadius())).c_str(), statColor.r, statColor.g, statColor.b, 255);
+        y += lineHeight;
+    }
+
+    stringRGBA(renderer, x, y, "--- Bio-Traits ---", geneColor.r, geneColor.g, geneColor.b, 255);
+    y += lineHeight;
+
+    // 1. Damage_Fragility
+    float fragPercent = entity.getDamageFragility() * 100.0f;
+    if (fragPercent > 0.001f) {
+        std::string fragStr = "Fragilite: +" + float_to_string(fragPercent, 1) + "% Degats Recus";
+        stringRGBA(renderer, x, y, fragStr.c_str(), impactColor.r, impactColor.g, impactColor.b, 255);
+        y += lineHeight;
+    }
+
+    // 2. Stamina_Efficiency
+    float effPercent = entity.getStaminaEfficiency() * 100.0f;
+    if (effPercent > 0.001f) {
+        std::string effStr = "Stamina Eff: -" + float_to_string(effPercent, 1) + "% Cout";
+        stringRGBA(renderer, x, y, effStr.c_str(), statColor.r, statColor.g, statColor.b, 255);
+        y += lineHeight;
+    }
+
+    // 3. Base_Health_Regen
+    float regenRate = entity.getBaseHealthRegen();
+    if (regenRate > 0.0001f) {
+        std::string regenStr = "Regen: +" + float_to_string(regenRate, 3) + " HP/cycle";
+        stringRGBA(renderer, x, y, regenStr.c_str(), statColor.r, statColor.g, statColor.b, 255);
+        y += lineHeight;
+    }
+
+    // 4. MyopiaFactor
+    float myopiaPercent = entity.getMyopiaFactor() * 100.0f;
+    if (myopiaPercent > 0.001f) {
+        std::string myopiaStr = "Myopie: -" + float_to_string(myopiaPercent, 1) + "% Vision";
+        stringRGBA(renderer, x, y, myopiaStr.c_str(), impactColor.r, impactColor.g, impactColor.b, 255);
+        y += lineHeight;
+    }
+
+    // 5. AimingPenalty
+    float aimPenalty = entity.getAimingPenalty();
+    if (aimPenalty > 0.001f) {
+        std::string aimStr = "Maladresse: +" + float_to_string(aimPenalty, 1) + " deg Erreur";
+        stringRGBA(renderer, x, y, aimStr.c_str(), impactColor.r, impactColor.g, impactColor.b, 255);
+        y += lineHeight;
+    }
+
+    // 6. FertilityFactor
+    int fertility = entity.getFertilityFactor();
+    if (fertility > 0) {
+        float healthCost = fertility * 5.0f; // 5% par point de fertilité
+        std::string fertStr = "Fecondite: +" + std::to_string(fertility) + " Enfant (Cout -" + float_to_string(healthCost, 1) + "% PV Initiaux)";
+        stringRGBA(renderer, x, y, fertStr.c_str(), statColor.r, statColor.g, statColor.b, 255);
+        y += lineHeight;
+    }
+
+    // 7. AgingRate
+    float agingRate = entity.getAgingRate();
+    if (agingRate > 0.00001f) {
+        float agingPerThousand = agingRate * 1000.0f; // Afficher en pour mille
+        std::string agingStr = "Vieillissement: -" + float_to_string(agingPerThousand, 3) + "‰ Max PV/cycle";
+        stringRGBA(renderer, x, y, agingStr.c_str(), impactColor.r, impactColor.g, impactColor.b, 255);
+        y += lineHeight;
     }
 }

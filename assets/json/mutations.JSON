@@ -1,0 +1,64 @@
+{
+  "Traits_Genetiques_EvoArena": [
+    {
+      "Nom_Gene": "Classique",
+      "Caractéristique": "Vitesse * 1.0",
+      "Caractéristique2": "Fragilite * 0.0"
+    },
+    {
+      "Nom_Gene": "Obèse",
+      "Caractéristique": "stamina * (-0,2)",
+      "Caractéristique2": "rad * 0,2 (Bonus de taille physique)"
+    },
+    {
+      "Nom_Gene": "Fragile",
+      "Caractéristique": "dégâts reçus * (1 + Damage_Fragility)",
+      "Caractéristique2": "health * (-0,05) (Maladie chronique)"
+    },
+    {
+      "Nom_Gene": "Efficace",
+      "Caractéristique": "coût stamina * (1 - Stamina_Efficiency)",
+      "Caractéristique2": "vitesse * 1.0 (Métabolisme lent, neutre en vitesse)"
+    },
+    {
+      "Nom_Gene": "Régénérateur",
+      "Caractéristique": "santé + Base_Health_Regen / cycle",
+      "Caractéristique2": "stamina - 5 / cycle (Coût énergétique)"
+    },
+    {
+      "Nom_Gene": "Myope",
+      "Caractéristique": "rayon vision * (1 - MyopiaFactor)",
+      "Caractéristique2": "précision tir * 1.0 (Neutre)"
+    },
+    {
+      "Nom_Gene": "Maladroit",
+      "Caractéristique": "précision tir * (-AimingPenalty)",
+      "Caractéristique2": "vitesse * 1.0 (Neutre)"
+    },
+    {
+      "Nom_Gene": "Fertile",
+      "Caractéristique": "enfants + FertilityFactor",
+      "Caractéristique2": "Max Santé * (1 - 0.05 * FertilityFactor) (Coût de fertilité)"
+    },
+    {
+      "Nom_Gene": "Vieillissant",
+      "Caractéristique": "Max Sante - AgingRate / cycle",
+      "Caractéristique2": "stamina * 1.0 (Neutre)"
+    },
+    {
+      "Nom_Gene": "Hyperactif",
+      "Caractéristique": "vitesse * 1.2 (Gain de vitesse)",
+      "Caractéristique2": "drain stamina * 2.0 (Double cout d'energie)"
+    },
+    {
+      "Nom_Gene": "Sédentaire",
+      "Caractéristique": "vitesse * 0.7 (Perte de vitesse)",
+      "Caractéristique2": "Max Stamina * 1.15 (Bonus d'economie d'energie)"
+    },
+    {
+      "Nom_Gene": "Robuste",
+      "Caractéristique": "degats recus * (1 - Damage_Resistance)",
+      "Caractéristique2": "stamina * 1.0 (Neutre)"
+    }
+  ]
+}
