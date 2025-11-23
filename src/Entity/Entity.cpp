@@ -22,47 +22,104 @@ SDL_Color Entity::generateRandomColor() {
 
 // --- FONCTION DE CALCUL DES STATS (Application des Nouveaux Gènes) ---
 void Entity::calculateDerivedStats() {
-    // --- PARTIE 1 : STATS DU CORPS (Basées sur 'rad') ---
+
+    // --- PARTIE 0 : Récupération des gènes ---
+    const int rad = (int)geneticCode[0];
+    const bool isRanged = geneticCode[10] > 0.5f;
+    const int weaponGene = (int)geneticCode[1];
+    const float staminaEfficiency = geneticCode[4];
+    const float myopiaFactor = geneticCode[6];
+    const int fertilityFactor = (int)geneticCode[9];
+
+    // NOUVEAU : Récupération de l'ID du Trait Dominant
+    const int traitID = (int)std::round(geneticCode[11]);
+
+
+    // --- PARTIE 1 : STATS DU CORPS (Basées sur 'rad' et valeurs de base) ---
     const float HEALTH_MULTIPLIER = 4.0f;
     const float SPEED_BASE = 5.0f;
     const float SPEED_DIVISOR = 50.0f;
     const float MIN_SPEED = 2.0f;
 
-    // Calcul de la santé max de base
+    // Calculs initiaux basés sur 'rad'
     this->maxHealth = (int)(HEALTH_MULTIPLIER * rad);
+    this->health = this->maxHealth;
 
-    // Calcul de la vitesse de base (inversement proportionnel à rad)
+    // Calcul initial de la vitesse
     this->speed = (int)(SPEED_BASE + (SPEED_DIVISOR / (float)rad));
     if (this->speed < MIN_SPEED) this->speed = (int)MIN_SPEED;
 
+    // Calcul initial de la stamina Max (avant modificateurs de trait)
     this->maxStamina = (int)(this->maxHealth * 1.5f);
+    this->stamina = this->maxStamina;
+
     this->sightRadius = 150 + (rad * 2);
 
     float sizeBias = std::clamp(((float)rad - 10.0f) / (40.0f - 10.0f), 0.0f, 1.0f);
-    this->armor = sizeBias * 0.60f;
+    this->armor = sizeBias * 0.60f; // Armor basée sur la taille par défaut
     this->regenAmount = 0;
 
 
-    // --- APPLICATION DES NOUVEAUX EFFETS GÉNÉTIQUES ---
+    // --- PARTIE 2 : APPLICATION DES EFFETS DU TRAIT DOMINANT (geneticCode[11]) ---
+
+    // Valeurs par défaut qui peuvent être modifiées par le switch
+    float finalSpeedMultiplier = 1.0f;
+    float finalMaxStaminaMultiplier = 1.0f;
+    float finalRadMultiplier = 1.0f;
+
+    switch (traitID) {
+        case 1: // ID 1 : Obèse
+            finalMaxStaminaMultiplier = 0.8f; // Stamina * (-0.2)
+            finalRadMultiplier = 1.2f;        // rad * 0.2 (Bonus de taille physique)
+            break;
+        case 9: // ID 9 : Hyperactif
+            finalSpeedMultiplier = 1.2f;      // Vitesse * 1.2
+            // Le drain de stamina est géré dans update()
+            break;
+        case 10: // ID 10 : Sédentaire
+            finalSpeedMultiplier = 0.7f;      // Vitesse * 0.7
+            finalMaxStaminaMultiplier = 1.15f; // Max Stamina * 1.15
+            break;
+        case 11: // ID 11 : Robuste
+            // Réduit les dégâts reçus (ici, on applique une meilleure armure)
+            this->armor = std::clamp(this->armor + 0.30f, 0.0f, 0.90f);
+            break;
+        default:
+            // ID 0 (Classique) et les autres IDs (2 à 8) qui gèrent leur effet via les floats [3] à [9]
+            break;
+    }
+
+    // Application des multiplicateurs
+    // Note: Le rad ne peut pas être modifié car il est tiré de geneticCode[0]
+    // Cependant, le trait Obèse est censé le modifier.
+    // OPTION 1: On ignore la modification de rad ici et on suppose que geneticCode[0] est muté.
+    // OPTION 2: On réinterprète le gène Obèse/Robust en modifiant directement les STATS dérivées:
+
+    // Appliquer le multiplicateur de vitesse (Hyperactif / Sédentaire)
+    this->speed = (int)(this->speed * finalSpeedMultiplier);
+    this->speed = std::max(this->speed, (int)MIN_SPEED);
+
+    // Appliquer le multiplicateur de stamina max (Obèse / Sédentaire)
+    this->maxStamina = (int)(this->maxStamina * finalMaxStaminaMultiplier);
+    this->stamina = this->maxStamina;
+
+
+    // --- PARTIE 3 : APPLICATION DES EFFETS GÉNÉTIQUES FLOATS (Traits Individuels) ---
 
     // 1. Appliquer MyopiaFactor à la vision
     this->sightRadius = (int)(this->sightRadius * (1.0f - myopiaFactor));
     if (this->sightRadius < 50) this->sightRadius = 50;
 
     // 2. Appliquer les pénalités de Fécondité (Compromis)
-    // Coût de la fertilité : réduction de la santé max
     this->maxHealth -= (int)(this->maxHealth * 0.05f * fertilityFactor);
     if (this->maxHealth < 1) this->maxHealth = 1;
-
-    // --- FINALISATION DES STATS ---
-    this->health = this->maxHealth;
-    this->stamina = this->maxStamina;
+    this->health = this->maxHealth; // Finalisation de la santé
 
 
-    // --- PARTIE 2 : STATS D'ARME ---
+    // --- PARTIE 4 : STATS D'ARME ---
 
     if (isRanged) {
-        // ... (Logique Ranged) ...
+        // ... (Logique Ranged utilisant weaponGene) ...
         const int MIN_RANGED_DMG = 5;
         const int MAX_RANGED_DMG = 20;
         const int MIN_RANGED_RANGE = 150;
@@ -76,10 +133,11 @@ void Entity::calculateDerivedStats() {
         attackCooldown = 500 + (Uint32)(powerBias * 2000);
         projectileSpeed = 12 - (int)(powerBias * 8);
         projectileRadius = 4 + (int)(powerBias * 8);
-        staminaAttackCost = 10 + (int)(powerBias * 15);
+        staminaAttackCost = 5 + (int)(powerBias * 15);
 
     } else {
         // --- STATS MELEE ---
+        // ... (Logique Melee utilisant sizeBias) ...
         const int MIN_MELEE_DMG = 5;
         const int MAX_MELEE_DMG = 25;
         const int MIN_MELEE_COOLDOWN = 150;
@@ -100,28 +158,20 @@ void Entity::calculateDerivedStats() {
 
 
 // --- CONSTRUCTEUR COMPLET (18 ARGUMENTS) ---
-Entity::Entity(std::string name, int x, int y, int rad, SDL_Color color, bool isRangedGene,
-               int generation, std::string p1_name, std::string p2_name,
-               int weaponGene, float kiteRatioGene,
-        // NOUVEAUX GÈNES
-               float damageFragility, float staminaEfficiency, float baseHealthRegen,
-               float myopiaFactor, float aimingPenalty, int fertilityFactor, float agingRate) :
-        x(x), y(y), rad(rad), color(color), name(std::move(name)),
-        isRanged(isRangedGene),
-        weaponGene(weaponGene),
+Entity::Entity(std::string name, int x, int y, SDL_Color color,
+               const float geneticCode[12], int generation,
+               std::string p1_name, std::string p2_name) :
+        x(x), y(y), color(color), name(std::move(name)),
         generation(generation),
         parent1_name(std::move(p1_name)),
-        parent2_name(std::move(p2_name)),
-        kite_ratio_gene(kiteRatioGene),
-        // INITIALISATION DES NOUVEAUX GÈNES
-        damageFragility(damageFragility),
-        staminaEfficiency(staminaEfficiency),
-        baseHealthRegen(baseHealthRegen),
-        myopiaFactor(myopiaFactor),
-        aimingPenalty(aimingPenalty),
-        fertilityFactor(fertilityFactor),
-        agingRate(agingRate)
-{
+        parent2_name(std::move(p2_name)){
+
+    this->rad = (int)geneticCode[0]; // FIX: Initialise le nouveau membre rad
+
+    for(int i = 0; i < 12; ++i) {
+        this->geneticCode[i] = geneticCode[i];
+    }
+
     direction[0] = 0;
     direction[1] = 0;
 
@@ -193,13 +243,22 @@ void Entity::update(int speedMultiplier) {
     Uint32 effectiveRegenCooldown = (speedMultiplier > 0) ? (REGEN_COOLDOWN_MS / speedMultiplier) : REGEN_COOLDOWN_MS;
     Uint32 effectiveStaminaDelay = (speedMultiplier > 0) ? (STAMINA_REGEN_DELAY_MS / speedMultiplier) : STAMINA_REGEN_DELAY_MS;
 
-    // 1. Régénération et Vieillissement
-    // A. Vieillissement (AgingRate)
+    // 1. Régénération et Vieillissement (Utilise les indices 8 et 5)
+    float agingRate = geneticCode[8];
+    float baseHealthRegen = geneticCode[5];
+
     if (agingRate > 0.0f) {
-        // Diminution de la santé max par cycle
         this->maxHealth -= (int)(this->maxHealth * agingRate * 0.001f * speedMultiplier);
         if (this->maxHealth < 1) this->maxHealth = 1;
         if (this->health > this->maxHealth) this->health = this->maxHealth;
+    }
+
+    if (baseHealthRegen > 0.0f && health < maxHealth) {
+        if (currentTime > lastRegenTick + effectiveRegenCooldown) {
+            health += (int)baseHealthRegen;
+            if (health > maxHealth) health = maxHealth;
+            lastRegenTick = currentTime;
+        }
     }
 
     // B. Régénération de la santé (Base_Health_Regen)
@@ -359,8 +418,10 @@ void Entity::knockBack() {
 void Entity::takeDamage(int amount) {
     if (!isAlive) return;
 
-    // NOTE: L'application de DamageFragility manque ici, mais la logique est la suivante:
-    float totalDamageModifier = (1.0f - armor); // + damageFragility (si implémenté)
+    float damageFragility = geneticCode[3]; // Gène de fragilité
+
+    // Application de l'armure et de la fragilité
+    float totalDamageModifier = (1.0f - armor) + damageFragility;
     int damageTaken = static_cast<int>(amount * totalDamageModifier);
 
     if (damageTaken < 1 && amount > 0) damageTaken = 1;
@@ -372,14 +433,16 @@ void Entity::takeDamage(int amount) {
         die();
     }
 }
-
 // --- FONCTION CONSUMESTAMINA (Application d'Efficacité) ---
 bool Entity::consumeStamina(int amount) {
-    // NOTE: L'application de StaminaEfficiency manque ici, mais la logique est la suivante:
-    // int actualCost = (int)(amount * (1.0f - staminaEfficiency));
+    float staminaEfficiency = geneticCode[4];
 
-    if (stamina >= amount) {
-        stamina -= amount;
+    // Appliquer l'efficacité de la stamina
+    int actualCost = (int)(amount * (1.0f - staminaEfficiency));
+    if (actualCost < 1) actualCost = 1;
+
+    if (stamina >= actualCost) {
+        stamina -= actualCost;
         lastStaminaUseTick = SDL_GetTicks();
         return true;
     }

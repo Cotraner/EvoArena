@@ -324,13 +324,17 @@ std::vector<Entity> initializeSimulation(int maxEntities) {
                 case 6: ar = (float)(std::rand() % 101) / 100.0f * AGING_MAX; break;
             }
         }
-
+        float newGeneticCode[12];
         // Le constructeur doit accepter ces 18 arguments
         newEntities.emplace_back(
-                name, randomX, randomY, randomRad, color, isRangedGene,
-                0, "Initial", "Initial",
-                50, 0.5f,
-                df, se, bhr, mf, ap, ff, ar
+                name, // Nom
+                randomX, // X
+                randomY, // Y
+                color, // Couleur
+                newGeneticCode, // Le tableau complet des 12 gènes (float*)
+                0, // Génération (0 pour l'initialisation)
+                "NONE", // Parent 1
+                "NONE"  // Parent 2
         );
     }
     return newEntities;
