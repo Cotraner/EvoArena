@@ -8,7 +8,6 @@ const SDL_Color HOVER_COLOR = {80, 80, 80, 255};
 const SDL_Color TEXT_COLOR = {255, 255, 255, 255};
 const SDL_Color TITLE_COLOR = {100, 255, 100, 255};
 
-// --- INITIALISATION TTF ---
 bool Menu::initializeTTF() {
     if (TTF_Init() == -1) {
         std::cerr << "SDL_ttf could not initialize! SDL_ttf Error: " << TTF_GetError() << std::endl;
@@ -22,7 +21,7 @@ bool Menu::initializeTTF() {
     return true;
 }
 
-// --- CONSTRUCTEUR (Nettoyé) ---
+// --- CONSTRUCTEUR  ---
 Menu::Menu(SDL_Renderer* renderer, SDL_Texture* backgroundTexture)
         : renderer(renderer), font(nullptr), backgroundTexture(backgroundTexture)
 {
@@ -30,8 +29,7 @@ Menu::Menu(SDL_Renderer* renderer, SDL_Texture* backgroundTexture)
         std::cerr << "TTF initialization failed. Graphics may not work." << std::endl;
     }
 
-    // On définit juste le texte ici.
-    // Les positions (.rect) seront définies dans updateLayout() appelé par draw().
+    //Définition des textes des boutons
     startButton.text = "Start Simulation";
     settingsButton.text = "Settings";
     quitButton.text = "Quit";
@@ -47,12 +45,12 @@ Menu::~Menu() {
     TTF_Quit();
 }
 
-// --- NOUVEAU : Recalcule les positions en fonction de la taille actuelle de la fenêtre ---
+// Recalcule les positions en fonction de la taille actuelle de la fenêtre ---
 void Menu::updateLayout() {
     int btnWidth = 300;
     int btnHeight = 60;
 
-    // ON RÉCUPÈRE LA TAILLE RÉELLE DE LA FENÊTRE ICI
+
     int w, h;
     if (renderer) {
         SDL_GetRendererOutputSize(renderer, &w, &h);
@@ -76,7 +74,6 @@ void Menu::updateLayout() {
     quitButton.rect = {centerX - btnWidth / 2, centerY + spacing, btnWidth, btnHeight};
 
     // --- SETTINGS SCREEN ---
-    // On utilise bottomY calculé avec la vraie hauteur
     saveButton.rect = {centerX - btnWidth / 2, bottomY, btnWidth, btnHeight};
     countUpButton.rect = {centerX + 150, centerY - btnHeight, smallBtnWidth, btnHeight};
     countDownButton.rect = {centerX - 210, centerY - btnHeight, smallBtnWidth, btnHeight};
@@ -115,7 +112,6 @@ Menu::MenuAction Menu::handleEvents(const SDL_Event& event) {
     return NONE;
 }
 
-// ... (drawText et drawButton restent inchangés) ...
 void Menu::drawText(const std::string& text, int x, int y, SDL_Color color) {
     if (!font) return;
     SDL_Surface* textSurface = TTF_RenderText_Solid(font, text.c_str(), color);
@@ -142,7 +138,6 @@ void Menu::drawButton(Button& button) {
     int textY = button.rect.y + button.rect.h / 2;
     drawText(button.text, textX, textY, TEXT_COLOR);
 }
-// ...
 
 void Menu::drawMainMenu(int maxEntities) {
     // Récupérer la largeur pour centrer le texte
@@ -178,7 +173,7 @@ void Menu::draw(int maxEntities) {
     // --- IMPORTANT : On recalcule les positions avant de dessiner ---
     updateLayout();
 
-    // 1. Dessiner le fond du menu (étiré à la taille de l'écran)
+    // Dessiner le fond du menu (étiré à la taille de l'écran)
     if (backgroundTexture) {
         // On passe NULL pour le rect de destination pour qu'il remplisse TOUT l'écran
         SDL_RenderCopy(renderer, backgroundTexture, nullptr, nullptr);

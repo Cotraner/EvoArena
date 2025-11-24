@@ -26,8 +26,8 @@ enum GameState {
 };
 
 enum SimRunState {
-    RUNNING, // La simulation est active
-    POST_COMBAT // La simulation est terminée, en attente
+    RUNNING,
+    POST_COMBAT
 };
 
 // --- Structures et Variables Globales (Panneau de Contrôle) ---
@@ -106,7 +106,6 @@ int main() {
             SDL_GetRendererOutputSize(graphics.getRenderer(), &WINDOW_WIDTH, &WINDOW_HEIGHT);
         }
 
-        // --- NOUVEAU : Animation du panneau de contrôle (se produit toujours) ---
         // Animation du panneau de contrôle
         controlPanelTargetX = isControlPanelVisible ? 0.0f : (float)-CONTROL_PANEL_WIDTH;
         float dist = controlPanelTargetX - controlPanelCurrentX;
@@ -135,7 +134,7 @@ int main() {
 
                 if (menu.getCurrentScreenState() == Menu::MAIN_MENU) {
                     if (action == Menu::START_SIMULATION) {
-                        // Lancement de la simulation (assumant que le constructeur Simulation est bien défini)
+                        // Lancement de la simulation
                         simulation = std::make_unique<Simulation>(maxEntities);
                         isPaused = false;
                         simulationSpeed = 1;
@@ -171,13 +170,14 @@ int main() {
                     SDL_Point mousePoint = {event.button.x, event.button.y};
                     bool clickHandled = false;
 
-                    // 1. Priorité : Clic sur l'icône (ouverture/fermeture du panneau)
+                    // Les clics sont hierarchisés : les panneaux passent avant les entités
+                    // Priorité : Clic sur l'icône (ouverture/fermeture du panneau)
                     if (SDL_PointInRect(&mousePoint, &settingsIconRect)) {
                         isControlPanelVisible = !isControlPanelVisible;
                         clickHandled = true;
                     }
 
-                        // 2. Priorité : Clic sur le panneau de contrôle
+                        // Priorité : Clic sur le panneau de contrôle
                     else if (mousePoint.x < (int)controlPanelCurrentX + CONTROL_PANEL_WIDTH) {
                         if (SDL_PointInRect(&mousePoint, &pauseButton.rect)) {
                             isPaused = !isPaused;
@@ -214,7 +214,7 @@ int main() {
                         }
                     }
 
-                    // 3. Clic sur la simulation (pour sélectionner une entité)
+                    // Clic sur la simulation (pour sélectionner une entité)
                     if (!clickHandled) {
                         simulation->handleEvent(event);
                     }
@@ -272,9 +272,7 @@ int main() {
     return 0;
 }
 
-// --- DÉFINITION DE LA FONCTION D'INITIALISATION DE LA SIMULATION (Rappel) ---
-// NOTE: Cette fonction n'est plus appelée directement dans main() mais par Simulation::initialize()
-// Elle est incluse ici uniquement pour référence des arguments génétiques.
+// --- DÉFINITION DE LA FONCTION D'INITIALISATION DE LA SIMULATION ---
 std::vector<Entity> initializeSimulation(int maxEntities) {
     std::vector<Entity> newEntities;
     std::srand(std::time(0));
@@ -325,7 +323,6 @@ std::vector<Entity> initializeSimulation(int maxEntities) {
             }
         }
         float newGeneticCode[12];
-        // Le constructeur doit accepter ces 18 arguments
         newEntities.emplace_back(
                 name, // Nom
                 randomX, // X
@@ -376,7 +373,6 @@ namespace {
             SDL_RenderFillRect(renderer, &btn.rect);
 
             // Dessin du texte au centre
-            // NOTE: stringRGBA est une fonction de faible niveau, le calcul du centrage est approximatif.
             stringRGBA(renderer, x + buttonWidth / 2 - (text.length() * 4),
                        y + buttonHeight / 2 - 5,
                        text.c_str(), currentTextColor.r, currentTextColor.g, currentTextColor.b, 255);
@@ -424,7 +420,7 @@ namespace {
         drawButton(manualRestartButton, "Relaunch (Survivors)", manualEnabled);
 
         // Bouton Restart (Gen 0)
-        y += 20; // Espacement
+        y += 20;
         drawButton(restartButton, "Restart (Gen 0)");
     }
 }

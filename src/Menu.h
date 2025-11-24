@@ -25,7 +25,6 @@ public:
         CHANGE_CELL_COUNT   // Changer le nombre de cellules
     };
 
-    // CONSTRUCTEUR MIS À JOUR
     Menu(SDL_Renderer* renderer, SDL_Texture* backgroundTexture);
     ~Menu();
 
