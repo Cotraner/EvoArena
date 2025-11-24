@@ -5,9 +5,10 @@
 #include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <string>
 
 namespace {
-    const int PANEL_WIDTH = 300; // Largeur du panneau de statistiques
+    const int PANEL_WIDTH = 300; // Largeur du panneau de stats
     const int SURVIVOR_COUNT = 5; // Nombre de survivants pour la reproduction
 
     // --- Constantes de l'algorithme génétique ---
@@ -20,7 +21,7 @@ namespace {
     const float NEUTRAL_FLOAT = 0.0f;
     const int NEUTRAL_INT = 0;
 
-    // Plages pour l'initialisation aléatoire simple (tirées du JSON)
+    // réécriture manuelle du JSON
     const float FRAGILITY_MAX = 0.3f;
     const float EFFICIENCY_MAX = 0.5f;
     const float REGEN_MAX = 0.2f;
@@ -45,8 +46,6 @@ namespace {
     };
 }
 
-// --- CONSTRUCTEUR ET INITIALISATION ---
-
 Simulation::Simulation(int maxEntities) :
         maxEntities(maxEntities),
         selectedLivingEntity(nullptr)
@@ -57,7 +56,6 @@ Simulation::Simulation(int maxEntities) :
 }
 
 Simulation::~Simulation() {
-    // Le destructeur est vide
 }
 
 // Initialise la GENERATION 0
@@ -78,8 +76,8 @@ void Simulation::initialize(int initialEntityCount) {
     for (int i = 0; i < initialEntityCount; ++i) {
         float newGeneticCode[12];
 
-        // 1. Initialisation des Gènes de Base et Comportementaux (0, 1, 2, 10)
-        newGeneticCode[0] = 10.0f + (float)(std::rand() % 31); // rad (10 à 40)
+        // 1. Initialisation des Gènes de Base
+        newGeneticCode[0] = 10.0f + (float)(std::rand() % 31);
         int randomRad = (int)newGeneticCode[0];
         int randomX = randomRad + (std::rand() % (WINDOW_WIDTH - 2 * randomRad));
         int randomY = randomRad + (std::rand() % (WINDOW_HEIGHT - 2 * randomRad));
@@ -87,21 +85,16 @@ void Simulation::initialize(int initialEntityCount) {
         std::string name = "G0-E" + std::to_string(i + 1);
         SDL_Color color = Entity::generateRandomColor();
 
-        newGeneticCode[1] = (float)(std::rand() % 101);      // weaponGene (0 à 100)
-        newGeneticCode[2] = (10 + (std::rand() % 91)) / 100.0f; // kiteRatio (0.1 à 1.0)
-        newGeneticCode[10] = (std::rand() % 2 == 0) ? 1.0f : 0.0f; // isRanged (50/50)
+        newGeneticCode[1] = (float)(std::rand() % 101);
+        newGeneticCode[2] = (10 + (std::rand() % 91)) / 100.0f;
+        newGeneticCode[10] = (std::rand() % 2 == 0) ? 1.0f : 0.0f;
 
-        // ----------------------------------------------------
-        // 2. Initialisation des Gènes Bio-Inspirés (3 à 9) à NEUTRE
-        // ----------------------------------------------------
+        // 2. Initialisation des Nouveaux Gènes à Neutre (3 à 9)
         for(int j = 3; j <= 9; ++j) {
             newGeneticCode[j] = NEUTRAL_FLOAT;
         }
 
-        // ----------------------------------------------------
-        // 3. ACTIVATION ET STOCKAGE DU GÈNE DOMINANT
-        // ----------------------------------------------------
-        // Choisir un ID aléatoire entre 0 (Classique) et 11 (Robuste)
+        // choix du gêne prédominant
         int dominantTraitID = std::rand() % NUMBER_OF_TRAITS;
         newGeneticCode[11] = (float)dominantTraitID;
 
@@ -109,30 +102,30 @@ void Simulation::initialize(int initialEntityCount) {
             case 0:
                 break;
 
-            case 1: // Obèse (Index 1: WeaponGene)
+            case 1: // Obèse
                 newGeneticCode[1] = (float)(std::rand() % 99) / 100.0f * EFFICIENCY_MAX;
                 break;
 
-            case 2: // Fragile (Index 3: Damage_Fragility)
+            case 2: // Fragile
                 newGeneticCode[3] = (float)(std::rand() % 101) / 100.0f * FRAGILITY_MAX;
                 break;
-            case 3: // Efficace (Index 4: Stamina_Efficiency)
+            case 3: // Efficace
                 newGeneticCode[4] = (float)(std::rand() % 101) / 100.0f * EFFICIENCY_MAX;
                 break;
-            case 4: // Régénérateur (Index 5: Base_Health_Regen)
+            case 4: // Régénérateur
                 newGeneticCode[5] = (float)(std::rand() % 101) / 100.0f * REGEN_MAX;
                 break;
-            case 5: // Myope (Index 6: MyopiaFactor)
+            case 5: // Myope
                 newGeneticCode[6] = (float)(std::rand() % 101) / 100.0f * MYOPIA_MAX;
                 break;
-            case 6: // Maladroit (Index 7: AimingPenalty)
+            case 6: // Maladroit
                 newGeneticCode[7] = (float)(std::rand() % 101) / 100.0f * AIM_MAX;
                 break;
-            case 7: // Fertile (Index 9: FertilityFactor)
-                newGeneticCode[9] = (float)(std::rand() % (FERTILITY_MAX_INT + 1));
-                break;
-            case 8: // Vieillissant (Index 8: AgingRate)
+            case 7: // Vieillissant
                 newGeneticCode[8] = (float)(std::rand() % 101) / 100.0f * AGING_MAX_FLOAT;
+                break;
+            case 8: // Fertile
+                newGeneticCode[9] = (float)(std::rand() % (FERTILITY_MAX_INT + 1));
                 break;
         }
 
@@ -148,12 +141,12 @@ void Simulation::initialize(int initialEntityCount) {
     }
 }
 
-// --- NOUVEAU : Logique de Reproduction ---
+//Logique de Reproduction
 void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
     std::vector<Entity> newGeneration;
     int numParents = parents.size();
 
-    // Si 'parents' est vide (ex: redémarrage), repartir de zéro
+    // Si 'parents' est vide
     if (parents.empty() || numParents < 2) {
         initialize(this->maxEntities); // Reviens à G0
         return;
@@ -211,19 +204,17 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
                 else { // Autres gènes Floats (WeaponGene, Fragility, Efficiency, etc.)
                     float mutation = (float)((std::rand() % (2 * GENE_MUTATION_AMOUNT + 1)) - GENE_MUTATION_AMOUNT) / 100.0f;
                     childGeneticCode[j] += mutation;
-                    // Note: Le clamping des autres gènes floats est nécessaire ici
                 }
             }
         }
 
-        // 3. Création de l'Entité Enfant (Utilise le rad de l'enfant pour le spawn)
+        // 3. Création de l'Entité Enfant
         std::string newName = "G" + std::to_string(newGen) + "-E" + std::to_string(i + 1);
         int randomRad = (int)childGeneticCode[0];
         int randomX = randomRad + (std::rand() % (WINDOW_WIDTH - 2 * randomRad));
         int randomY = randomRad + (std::rand() % (WINDOW_HEIGHT - 2 * randomRad));
         SDL_Color newColor = parent1.getColor(); // Couleur héritée de P1
 
-        // APPEL CORRIGÉ (8 arguments)
         newGeneration.emplace_back(
                 newName, randomX, randomY, newColor,
                 childGeneticCode, // Tableau float[12]
@@ -239,8 +230,6 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
 void Simulation::triggerManualRestart() {
     triggerReproduction(lastSurvivors);
 }
-
-// --- GESTION DES ÉVÉNEMENTS (MODIFIÉE) ---
 
 void Simulation::handleEvent(const SDL_Event &event) {
     if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
@@ -258,9 +247,9 @@ void Simulation::handleEvent(const SDL_Event &event) {
                 clickHandled = true;
             }
             else if (SDL_PointInRect(&mousePoint, &panelParent1_rect)) {
-                std::string p1_name = inspectionStack.back().getParent1Name();
-                if (genealogyArchive.count(p1_name)) { // "count" vérifie si la clé existe
-                    inspectionStack.push_back(genealogyArchive.at(p1_name)); // ".at" récupère la valeur
+                std::string p1_name = inspectionStack.back().getParent1Name(); //
+                if (genealogyArchive.count(p1_name)) { // "count" vérifie l'existence
+                    inspectionStack.push_back(genealogyArchive.at(p1_name)); // Ajouter le parent 1
                     clickHandled = true;
                 }
             }
@@ -273,9 +262,9 @@ void Simulation::handleEvent(const SDL_Event &event) {
             }
         }
 
-        if (clickHandled) return; // Clic sur l'UI, ne pas vérifier les entités
+        if (clickHandled) return;
 
-        // 2. Gérer les clics sur les entités
+        // Gérer les clics sur les entités
         bool entityClicked = false;
         for (auto& entity : entities) {
             if (!entity.getIsAlive()) continue;
@@ -286,22 +275,20 @@ void Simulation::handleEvent(const SDL_Event &event) {
 
             if (distance < entity.getRad()) {
                 selectedLivingEntity = &entity;
-                inspectionStack.clear(); // Nouvelle sélection, vider la pile
+                inspectionStack.clear();
                 inspectionStack.push_back(entity); // Ajouter l'entité vivante
                 entityClicked = true;
                 break;
             }
         }
 
-        // 3. Clic dans le vide
+        //Clic dans le vide
         if (!entityClicked) {
             selectedLivingEntity = nullptr;
             inspectionStack.clear(); // Vider le panneau
         }
     }
 }
-
-// --- BOUCLE DE MISE À JOUR (MODIFIÉE) ---
 
 Simulation::SimUpdateStatus Simulation::update(int speedMultiplier, bool autoRestart) {
     updateLogic(speedMultiplier);
@@ -319,7 +306,7 @@ Simulation::SimUpdateStatus Simulation::update(int speedMultiplier, bool autoRes
             genealogyArchive.insert({winner.getName(), winner});
         }
 
-        // --- MODIFIÉ : Gère l'auto-redémarrage ---
+        // Gère l'auto-redémarrage
         if (autoRestart) {
             triggerReproduction(lastSurvivors);
             return SimUpdateStatus::RUNNING; // Continue
@@ -329,7 +316,7 @@ Simulation::SimUpdateStatus Simulation::update(int speedMultiplier, bool autoRes
         }
     }
 
-    // --- Animation du panneau ---
+    //Animation du panneau
     if (!inspectionStack.empty()) {
         panelTargetX = (float)(WINDOW_WIDTH - PANEL_WIDTH);
     } else {
@@ -348,9 +335,7 @@ Simulation::SimUpdateStatus Simulation::update(int speedMultiplier, bool autoRes
     return SimUpdateStatus::RUNNING; // La simulation continue
 }
 
-// ... (updateLogic, updatePhysics, updateProjectiles, cleanupDead sont inchangés) ...
 void Simulation::updateLogic(int speedMultiplier) {
-    // ... (code inchangé)
     for (auto &entity : entities) {
         if (!entity.getIsAlive()) continue;
 
@@ -445,13 +430,11 @@ void Simulation::updateLogic(int speedMultiplier) {
     }
 }
 void Simulation::updatePhysics(int speedMultiplier) {
-    // ... (code inchangé)
-    // 1. Appliquer le mouvement
+    // Appliquer le mouvement
     for (auto &entity : entities) {
         entity.update(speedMultiplier);
     }
-
-    // 2. Corriger les collisions (séparation)
+    // Corriger les collisions (séparation)
     for (auto &entity : entities) {
         for (auto &other : entities) {
             if (&entity != &other && other.getIsAlive()) {
@@ -473,7 +456,6 @@ void Simulation::updatePhysics(int speedMultiplier) {
     }
 }
 void Simulation::updateProjectiles() {
-    // ... (code inchangé)
     projectiles.erase(
             std::remove_if(projectiles.begin(), projectiles.end(), [&](Projectile& proj) {
                 proj.update();
@@ -496,7 +478,6 @@ void Simulation::updateProjectiles() {
     );
 }
 void Simulation::cleanupDead() {
-    // ... (code inchangé)
     entities.erase(
             std::remove_if(entities.begin(), entities.end(), [](const Entity &entity) {
                 return !entity.getIsAlive();
@@ -505,11 +486,8 @@ void Simulation::cleanupDead() {
     );
 }
 
-
-// --- BOUCLE DE RENDU (MODIFIÉE) ---
-
 void Simulation::render(SDL_Renderer *renderer, bool showDebug) {
-    // 1. Dessiner les objets du jeu
+    // Dessiner les objets du jeu
     for (auto &entity : entities) {
         entity.draw(renderer, showDebug);
     }
@@ -517,7 +495,7 @@ void Simulation::render(SDL_Renderer *renderer, bool showDebug) {
         proj.draw(renderer);
     }
 
-    // 2. Dessiner la surbrillance (sur l'entité vivante)
+    // Dessiner la surbrillance (sur l'entité vivante)
     if (selectedLivingEntity != nullptr) {
         circleRGBA(renderer,
                    selectedLivingEntity->getX(),
@@ -526,20 +504,11 @@ void Simulation::render(SDL_Renderer *renderer, bool showDebug) {
                    255, 255, 0, 200);
     }
 
-    // 3. Dessiner le panneau (s'il est en cours d'affichage)
+    // Dessiner le panneau (s'il est en cours d'affichage)
     if (panelCurrentX < WINDOW_WIDTH) {
         drawStatsPanel(renderer, static_cast<int>(panelCurrentX));
     }
 }
-
-// --- drawStatsPanel (MODIFIÉ) ---
-#include <cmath>
-#include <algorithm>
-#include <sstream>
-#include <iomanip>
-#include <string>
-
-// NOTE: Cette fonction dépend des membres de la classe Simulation et des getters d'Entity.
 
 void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
 
@@ -582,7 +551,6 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
 
 
     // 1. Fond du panneau
-    // (Variables globales PANEL_WIDTH et WINDOW_SIZE_HEIGHT supposées définies)
     SDL_Rect panelRect = {panelX, 0, PANEL_WIDTH, WINDOW_HEIGHT};
     SDL_SetRenderDrawColor(renderer, 20, 20, 20, 200);
     SDL_RenderFillRect(renderer, &panelRect);
@@ -596,10 +564,9 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
     const SDL_Color geneColor = {150, 200, 255, 255};
     const SDL_Color linkColor = {100, 100, 255, 255};
 
-    // --- Entête et Bouton Retour (Inchangé) ---
+    // --- Entête et Bouton Retour
     if (inspectionStack.size() > 1) {
         std::string backText = "< Back";
-        // panelBack_rect est supposé être géré pour l'interactivité
         stringRGBA(renderer, x + 10, y + 8, backText.c_str(), statColor.r, statColor.g, statColor.b, 255);
         y += 40;
     }
@@ -630,7 +597,6 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
     stringRGBA(renderer, x, y, ("Parent 2: " + entity.getParent2Name()).c_str(), linkColor.r, linkColor.g, linkColor.b, 255);
     y += lineHeight * 1.5;
 
-
     // --- BLOC 2 : TRAIT DOMINANT ET CORPS ---
     stringRGBA(renderer, x, y, "--- Body Stats ---", statColor.r, statColor.g, statColor.b, 255);
     y += lineHeight;
@@ -647,7 +613,6 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
     y += lineHeight;
     stringRGBA(renderer, x, y, ("Sight Radius: " + std::to_string(entity.getSightRadius())).c_str(), statColor.r, statColor.g, statColor.b, 255);
     y += lineHeight * 1.5;
-
 
     // --- BLOC 3 : GÈNES BRUTS (Bio-Inspirés) ---
     stringRGBA(renderer, x, y, "--- Genetic Traits ---", geneColor.r, geneColor.g, geneColor.b, 255);
@@ -695,7 +660,7 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
     }
 
 
-    // --- AFFICHAGE DES TRAITS FLOATS (Basés sur les valeurs actives : 2, 3, 4, 5, 6, 7, 8) ---
+    // --- AFFICHAGE DES TRAITS
 
     // 1. Damage_Fragility (ID 2)
     float fragPercent = entity.getDamageFragility() * 100.0f;

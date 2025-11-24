@@ -5,11 +5,10 @@
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include "../constants.h"
 #include <cmath>
-#include <string> // *** AJOUTÉ ***
+#include <string>
 
 class Projectile {
 public:
-    // *** SIGNATURE DU CONSTRUCTEUR MISE À JOUR ***
     Projectile(int startX, int startY, float targetX, float targetY, int speed, int damage, int range, SDL_Color color, int radius, std::string shooterName);
     ~Projectile();
 
@@ -22,7 +21,7 @@ public:
     int getDamage() const { return damage; }
     int getRadius() const { return radius; }
     bool isAlive() const { return alive; }
-    std::string getShooterName() const { return shooterName; } // *** AJOUTÉ ***
+    std::string getShooterName() const { return shooterName; }
 
     // Setter
     void setDead() { alive = false; }

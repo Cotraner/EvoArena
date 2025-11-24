@@ -10,7 +10,6 @@
 
 class Simulation {
 public:
-    // --- NOUVEAU : Statut de retour pour l'update ---
     enum class SimUpdateStatus {
         RUNNING,
         FINISHED
@@ -35,8 +34,6 @@ private:
     std::map<std::string, Entity> genealogyArchive;
     Entity* selectedLivingEntity;
     std::vector<Entity> inspectionStack;
-
-    // --- NOUVEAU : Stocke les derniers survivants ---
     std::vector<Entity> lastSurvivors;
 
     float panelTargetX;
