@@ -14,7 +14,7 @@ class Projectile;
 
 class Entity {
 public:
-    // --- NOUVELLE SIGNATURE DU CONSTRUCTEUR (8 arguments) ---
+    // --- NOUVELLE SIGNATURE DU CONSTRUCTEUR ---
     Entity(std::string name, int x, int y, SDL_Color color,
            const float geneticCode[12], int generation,
            std::string parent1_name, std::string parent2_name);
@@ -36,7 +36,7 @@ public:
     void setIsFleeing(bool fleeing) { isFleeing = fleeing; }
 
 
-    // --- Getters de Base (utilisent maintenant le nouveau membre rad) ---
+    // --- Getters de Base ---
     [[nodiscard]] std::string getName() const { return name; }
     SDL_Color getColor() const { return color; }
     int getX() const { return x; }
@@ -55,7 +55,6 @@ public:
     int getCurrentTraitID() const { return (int)geneticCode[11]; }
 
     // --- Getters des Stats Dérivées et Armes ---
-    // ... (inchangé)
     int getHealth() const { return health; }
     void setHealth(int h) { health = h; }
     int getMaxHealth() const { return maxHealth; }
@@ -97,12 +96,12 @@ private:
     int x,y;
     bool isAlive = true;
     SDL_Color color;
-    int rad; // FIX: Réintroduction du membre de classe rad
+    int rad;
 
     // --- CHROMOSOME (Le seul stockage génétique) ---
     float geneticCode[12];
 
-    // --- STATS DÉRIVÉES (Stockage en mémoire) ---
+    // --- STATS DÉRIVÉES ---
     int health;
     int maxHealth;
     int speed;
@@ -116,7 +115,7 @@ private:
     int projectileRadius;
     int staminaAttackCost;
     float armor = 0.0f;
-    int regenAmount = 0; // Utilisé dans le CPP
+    int regenAmount = 0; 
 
     // --- Variables de Logique/Temps ---
     int direction[2]{};

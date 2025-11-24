@@ -19,7 +19,7 @@ public:
     SDL_Window* getWindow() { return window; } ;
     void drawBackground();
 
-    // NOUVEAU GETTER : Permet à main.cpp d'accéder à la texture
+    // Permet à main.cpp d'accéder à la texture
     SDL_Texture* getMenuBackgroundTexture() { return menuBackgroundTexture; } ;
     SDL_Texture* getSettingsIconTexture() { return settingsIconTexture; } ; // *** NOUVEAU ***
 

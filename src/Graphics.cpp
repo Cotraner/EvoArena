@@ -30,7 +30,7 @@ Graphics::Graphics(){
         }
     }
 
-    // *** NOUVEAU : Chargement de l'icône des paramètres ***
+    // Chargement de l'icône des paramètres
     SDL_Surface* settingsIconSurface = IMG_Load("../assets/images/settings-icon.png");
     if (!settingsIconSurface) {
         std::cerr << "Erreur IMG_Load pour l'icône settings: " << IMG_GetError() << std::endl;

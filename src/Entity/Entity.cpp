@@ -8,7 +8,6 @@
 #include <sstream>
 #include <iomanip>
 
-// Constantes pour M_PI et std::clamp (déjà incluses dans les headers standard)
 
 // --- FONCTION STATIQUE ---
 SDL_Color Entity::generateRandomColor() {
@@ -23,7 +22,7 @@ SDL_Color Entity::generateRandomColor() {
 // --- FONCTION DE CALCUL DES STATS (Application des Nouveaux Gènes) ---
 void Entity::calculateDerivedStats() {
 
-    // --- PARTIE 0 : Récupération des gènes ---
+
     const int rad = (int)geneticCode[0];
     const bool isRanged = geneticCode[10] > 0.5f;
     const int weaponGene = (int)geneticCode[1];
@@ -31,11 +30,11 @@ void Entity::calculateDerivedStats() {
     const float myopiaFactor = geneticCode[6];
     const int fertilityFactor = (int)geneticCode[9];
 
-    // NOUVEAU : Récupération de l'ID du Trait Dominant
+    // Récupération de l'ID du Trait Dominant
     const int traitID = (int)std::round(geneticCode[11]);
 
 
-    // --- PARTIE 1 : STATS DU CORPS (Basées sur 'rad' et valeurs de base) ---
+    // STATS DU CORPS (Basées sur 'rad' et valeurs de base) ---
     const float HEALTH_MULTIPLIER = 4.0f;
     const float SPEED_BASE = 5.0f;
     const float SPEED_DIVISOR = 50.0f;
@@ -60,7 +59,7 @@ void Entity::calculateDerivedStats() {
     this->regenAmount = 0;
 
 
-    // --- PARTIE 2 : APPLICATION DES EFFETS DU TRAIT DOMINANT (geneticCode[11]) ---
+    // APPLICATION DES EFFETS DU TRAIT DOMINANT (geneticCode[11]) ---
 
     // Valeurs par défaut qui peuvent être modifiées par le switch
     float finalSpeedMultiplier = 1.0f;
@@ -104,7 +103,7 @@ void Entity::calculateDerivedStats() {
     this->stamina = this->maxStamina;
 
 
-    // --- PARTIE 3 : APPLICATION DES EFFETS GÉNÉTIQUES FLOATS (Traits Individuels) ---
+    // APPLICATION DES EFFETS GÉNÉTIQUES FLOATS (Traits Individuels) ---
 
     // 1. Appliquer MyopiaFactor à la vision
     this->sightRadius = (int)(this->sightRadius * (1.0f - myopiaFactor));
@@ -116,10 +115,10 @@ void Entity::calculateDerivedStats() {
     this->health = this->maxHealth; // Finalisation de la santé
 
 
-    // --- PARTIE 4 : STATS D'ARME ---
+    // STATS D'ARME ---
 
     if (isRanged) {
-        // ... (Logique Ranged utilisant weaponGene) ...
+        // --- STATS RANGED ---
         const int MIN_RANGED_DMG = 5;
         const int MAX_RANGED_DMG = 20;
         const int MIN_RANGED_RANGE = 150;
@@ -137,7 +136,6 @@ void Entity::calculateDerivedStats() {
 
     } else {
         // --- STATS MELEE ---
-        // ... (Logique Melee utilisant sizeBias) ...
         const int MIN_MELEE_DMG = 5;
         const int MAX_MELEE_DMG = 25;
         const int MIN_MELEE_COOLDOWN = 150;
@@ -157,7 +155,7 @@ void Entity::calculateDerivedStats() {
 }
 
 
-// --- CONSTRUCTEUR COMPLET (18 ARGUMENTS) ---
+// --- CONSTRUCTEUR COMPLET ---
 Entity::Entity(std::string name, int x, int y, SDL_Color color,
                const float geneticCode[12], int generation,
                std::string p1_name, std::string p2_name) :
@@ -210,7 +208,6 @@ void Entity::draw(SDL_Renderer* renderer, bool showDebug) {
     float staminaPercent = (float)stamina / (float)maxStamina;
     staminaPercent = std::clamp(staminaPercent, 0.0f, 1.0f);
 
-    // ... (Code de dessin des barres inchangé) ...
     SDL_Rect healthBarBg = {x - offset - barWidth, y - barHeight / 2, barWidth, barHeight};
     SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
     SDL_RenderFillRect(renderer, &healthBarBg);
@@ -243,7 +240,7 @@ void Entity::update(int speedMultiplier) {
     Uint32 effectiveRegenCooldown = (speedMultiplier > 0) ? (REGEN_COOLDOWN_MS / speedMultiplier) : REGEN_COOLDOWN_MS;
     Uint32 effectiveStaminaDelay = (speedMultiplier > 0) ? (STAMINA_REGEN_DELAY_MS / speedMultiplier) : STAMINA_REGEN_DELAY_MS;
 
-    // 1. Régénération et Vieillissement (Utilise les indices 8 et 5)
+    // Régénération et Vieillissement (Utilise les indices 8 et 5)
     float agingRate = geneticCode[8];
     float baseHealthRegen = geneticCode[5];
 
@@ -261,7 +258,7 @@ void Entity::update(int speedMultiplier) {
         }
     }
 
-    // B. Régénération de la santé (Base_Health_Regen)
+    // Régénération de la santé (Base_Health_Regen)
     if (baseHealthRegen > 0.0f && health < maxHealth) {
         if (currentTime > lastRegenTick + effectiveRegenCooldown) {
             health += (int)baseHealthRegen;
@@ -270,7 +267,7 @@ void Entity::update(int speedMultiplier) {
         }
     }
 
-    // C. Régénération et consommation de la Stamina
+    // Régénération et consommation de la Stamina
     if (isFleeing) {
         if (stamina > 0) {
             stamina -= STAMINA_FLEE_COST_PER_FRAME;
@@ -286,13 +283,13 @@ void Entity::update(int speedMultiplier) {
         }
     }
 
-    // 2. Vérification de la mort
+    // Vérification de la mort
     if (health <= 0) {
         die();
         return;
     }
 
-    // 3. Logique de mouvement
+    // Logique de mouvement
     int currentSpeed = speed * speedMultiplier;
 
     if (direction[0] == 0 && direction[1] == 0) {
@@ -320,7 +317,7 @@ void Entity::update(int speedMultiplier) {
         lastVelY = normY;
     }
 
-    // 4. Gestion des bords
+    // Gestion des bords
     bool collided = false;
     if (x < rad) {
         x = rad;
