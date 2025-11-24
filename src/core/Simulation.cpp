@@ -105,17 +105,13 @@ void Simulation::initialize(int initialEntityCount) {
         int dominantTraitID = std::rand() % NUMBER_OF_TRAITS;
         newGeneticCode[11] = (float)dominantTraitID;
 
-        // Si le trait dominant est un des gènes flottants (Fragile à Fertile),
-        // on active son float correspondant.
-
-        // MAPPING ID (Utilisant l'ordre implicite des gènes dans votre code)
-        // 2: Fragile (geneticCode[3]), 3: Efficace (geneticCode[4]),
-        // 4: Régénérateur (geneticCode[5]), 5: Myope (geneticCode[6]),
-        // 6: Maladroit (geneticCode[7]), 7: Fertile (geneticCode[9]), 8: Vieillissant (geneticCode[8])
-
         switch (dominantTraitID) {
-            // Note: Les IDs 0, 1, 9, 10, 11 (Classique, Obèse, Hyperactif, Sédentaire, Robuste)
-            // sont appliqués via geneticCode[11] sans modifier d'autres floats ici.
+            case 0:
+                break;
+
+            case 1: // Obèse (Index 1: WeaponGene)
+                newGeneticCode[1] = (float)(std::rand() % 99) / 100.0f * EFFICIENCY_MAX;
+                break;
 
             case 2: // Fragile (Index 3: Damage_Fragility)
                 newGeneticCode[3] = (float)(std::rand() % 101) / 100.0f * FRAGILITY_MAX;
