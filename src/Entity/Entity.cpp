@@ -344,10 +344,7 @@ void Entity::chooseDirection(int target[2]) {
         direction[0] = target[0]; direction[1] = target[1];
         targetX = target[0]; targetY = target[1];
     } else {
-        targetX = -1; targetY = -1;
-        direction[0] = target[0]; direction[1] = target[1];
-        targetX = target[0]; targetY = target[1];
-    } else {
+
         targetX = -1; targetY = -1;
         const float WANDER_DISTANCE = 90.0f;
         const float WANDER_JITTER_STRENGTH = 0.4f;
@@ -402,7 +399,6 @@ void Entity::knockBackFrom(int sourceX, int sourceY, int force) {
 
 void Entity::takeDamage(int amount) {
     if (!isAlive) return;
-    float damageFragility = geneticCode[3];
     float damageFragility = geneticCode[3];
     float totalDamageModifier = (1.0f - armor) + damageFragility;
     int damageTaken = static_cast<int>(amount * totalDamageModifier);

@@ -258,60 +258,56 @@ Simulation::SimUpdateStatus Simulation::update(int speedMultiplier, bool autoRes
 
     return SimUpdateStatus::RUNNING;
 }
-
 void Simulation::updateLogic(int speedMultiplier) {
     for (auto &entity : entities) {
         if (!entity.getIsAlive()) continue;
+
         Entity* closestEnemy = nullptr;
         auto closestDistance = (float)(WINDOW_WIDTH + WINDOW_HEIGHT);
 
         // Recherche de l'ennemi le plus proche
         for (auto &other : entities) {
             if (&entity != &other && other.getIsAlive()) {
-                int dx = entity.getX() - other.getX(); int dy = entity.getY() - other.getY();
+                int dx = entity.getX() - other.getX();
+                int dy = entity.getY() - other.getY();
                 float distance = std::sqrt((float)dx * dx + (float)dy * dy);
-                if (distance < closestDistance) { closestDistance = distance; closestEnemy = &other; }
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestEnemy = &other;
+                }
             }
         }
 
         if (closestEnemy) {
+            // --- RÉCUPÉRATION DES STATS (Nécessaires pour la suite) ---
             bool isRanged = entity.getIsRanged();
             int attackRange = entity.getAttackRange();
+            Uint32 cooldown = entity.getAttackCooldown();
+            int damage = entity.getDamage();
             int target[2] = {closestEnemy->getX(), closestEnemy->getY()};
 
             // --- IA DE MOUVEMENT ---
             if (closestDistance < entity.getSightRadius()){
 
                 if (isRanged) {
-                    entity.setIsCharging(false);
                     // --- COMPORTEMENT TIREUR (RANGED) ---
-                    // On essaie de garder une distance idéale (environ 60-80% de la portée max)
-                    // Le KiteRatio (gène 2) permet de varier cette distance selon l'individu
-                    float kiteRatio = entity.getKiteRatio(); // Vaut généralement entre 0.5 et 1.0
+                    entity.setIsCharging(false); // Un ranged ne charge jamais
+
+                    // Calcul de la distance idéale (Kite)
+                    float kiteRatio = entity.getKiteRatio();
                     int idealRange = (int)(attackRange * kiteRatio);
 
                     if (closestDistance < idealRange) {
                         // TROP PRÈS -> FUITE (Kiting)
-                        // On calcule un point à l'opposé de l'ennemi
                         if (entity.getStamina() > 0) {
-                            int fleeTarget[2] = { entity.getX() + (entity.getX() - closestEnemy->getX()) * 2, entity.getY() + (entity.getY() - closestEnemy->getY()) * 2 };
-                            entity.chooseDirection(fleeTarget); entity.setIsFleeing(true);
-                        } else { entity.chooseDirection(nullptr); entity.setIsFleeing(false); }
-                    } else if (closestDistance < attackRange) { entity.chooseDirection(nullptr); entity.setIsFleeing(false); }
-                    else { entity.chooseDirection(target); entity.setIsFleeing(false); }
-                } else {
-                    entity.setIsFleeing(false);
-                    if (closestDistance > attackRange) entity.setIsCharging(true);
-                    else entity.setIsCharging(false);
-
                             int fleeTarget[2] = {
-                                    entity.getX() + (entity.getX() - closestEnemy->getX()),
-                                    entity.getY() + (entity.getY() - closestEnemy->getY())
+                                    entity.getX() + (entity.getX() - closestEnemy->getX()) * 2,
+                                    entity.getY() + (entity.getY() - closestEnemy->getY()) * 2
                             };
                             entity.chooseDirection(fleeTarget);
                             entity.setIsFleeing(true);
                         } else {
-                            // Plus de stamina pour fuir, on subit
+                            // Trop fatigué pour fuir
                             entity.chooseDirection(nullptr);
                             entity.setIsFleeing(false);
                         }
@@ -329,38 +325,63 @@ void Simulation::updateLogic(int speedMultiplier) {
                 }
                 else {
                     // --- COMPORTEMENT MÊLÉE ---
-                    // On fonce tout droit
-                    if (closestDistance < attackRange) {
-                        int stopTarget[2] = {entity.getX(), entity.getY()}; entity.chooseDirection(stopTarget);
-                    } else entity.chooseDirection(target);
-                }
-            } else { entity.chooseDirection(nullptr); entity.setIsFleeing(false); entity.setIsCharging(false); }
+                    entity.setIsFleeing(false);
 
+                    // Si on voit l'ennemi mais qu'on est trop loin : CHARGE !
+                    if (closestDistance > attackRange) {
+                        entity.setIsCharging(true);
+                        entity.chooseDirection(target);
+                    }
+                    else {
+                        // À PORTÉE -> ON S'ARRÊTE ET ON TAPPE
+                        entity.setIsCharging(false);
+                        int stopTarget[2] = {entity.getX(), entity.getY()};
+                        entity.chooseDirection(stopTarget);
+                    }
+                }
+            }
+            else {
+                // Ennemi trop loin (hors vue) -> Repos
+                entity.chooseDirection(nullptr);
+                entity.setIsFleeing(false);
+                entity.setIsCharging(false);
+            }
+
+            // --- LOGIQUE D'ATTAQUE ---
             if (closestDistance < attackRange) {
                 Uint32 currentTime = SDL_GetTicks();
                 Uint32 effectiveCooldown = (speedMultiplier > 0) ? (cooldown / speedMultiplier) : cooldown;
-                if (lastShotTime.find(entity.getName()) == lastShotTime.end() || currentTime > lastShotTime[entity.getName()] + effectiveCooldown) {
+
+                if (lastShotTime.find(entity.getName()) == lastShotTime.end() ||
+                    currentTime > lastShotTime[entity.getName()] + effectiveCooldown) {
+
                     if (entity.consumeStamina(entity.getStaminaAttackCost())) {
                         if (isRanged) {
-                            Projectile newP(entity.getX(), entity.getY(), closestEnemy->getX(), closestEnemy->getY(), entity.getProjectileSpeed(), damage, attackRange, entity.getColor(), entity.getProjectileRadius(), entity.getName());
+                            Projectile newP(
+                                    entity.getX(), entity.getY(),
+                                    closestEnemy->getX(), closestEnemy->getY(),
+                                    entity.getProjectileSpeed(), damage, attackRange,
+                                    entity.getColor(), entity.getProjectileRadius(), entity.getName()
+                            );
                             projectiles.push_back(newP);
                         } else {
                             // --- ATTAQUE MELEE ---
                             closestEnemy->takeDamage(damage);
 
-                            // [NOUVEAU] KNOCKBACK !
-                            // Repousse l'ennemi de 40 pixels pour briser le corps-à-corps statique
+                            // KNOCKBACK (Recul)
                             closestEnemy->knockBackFrom(entity.getX(), entity.getY(), 40);
                         }
+                        // Mise à jour du temps de tir
+                        lastShotTime[entity.getName()] = currentTime;
                     }
                 }
-
-            } else {
-                // Pas d'ennemi en vue -> On erre au hasard ou on s'arrête
-                entity.chooseDirection(nullptr);
-                entity.setIsFleeing(false);
             }
-        } else { entity.chooseDirection(nullptr); entity.setIsFleeing(false); entity.setIsCharging(false); }
+        } else {
+            // Aucun ennemi vivant sur la carte
+            entity.chooseDirection(nullptr);
+            entity.setIsFleeing(false);
+            entity.setIsCharging(false);
+        }
     }
 }
 
