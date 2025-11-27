@@ -95,7 +95,17 @@ void Simulation::initialize(int initialEntityCount) {
         }
 
         // choix du gêne prédominant
-        int dominantTraitID = std::rand() % NUMBER_OF_TRAITS;
+        int dominantTraitID = 0;
+        int roll = std::rand() % 100;
+
+        if (roll < 80) {
+            // 80% de chance : Reste Classique
+            dominantTraitID = 0;
+        } else {
+            // 20% de chance : Devient une mutation spéciale (ID 1 à 11)
+            // On choisit parmi les 11 traits restants (NUMBER_OF_TRAITS - 1)
+            dominantTraitID = 1 + (std::rand() % (NUMBER_OF_TRAITS - 1));
+        }
         newGeneticCode[11] = (float)dominantTraitID;
 
         switch (dominantTraitID) {
@@ -146,21 +156,22 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
     std::vector<Entity> newGeneration;
     int numParents = parents.size();
 
-    // Si 'parents' est vide
     if (parents.empty() || numParents < 2) {
-        initialize(this->maxEntities); // Reviens à G0
+        initialize(this->maxEntities);
         return;
     }
 
     int newGen = parents[0].getGeneration() + 1;
     this->currentGeneration = newGen;
 
+    // Définition des indices des gènes "Bio" (ceux qui causent des effets visuels comme Myopie)
+    // 3:Fragile, 4:Efficace, 5:Regen, 6:Myope, 7:Maladroit, 8:Vieillissant, 9:Fertile
+    const std::vector<int> bioGeneIndices = {3, 4, 5, 6, 7, 8, 9};
+
     for (int i = 0; i < maxEntities; ++i) {
-        // 1. Sélection des parents
         const Entity& parent1 = parents[std::rand() % numParents];
         const Entity* parent2_ptr = &parents[std::rand() % numParents];
 
-        // S'assurer que Parent 2 est différent de Parent 1 (si possible)
         if (numParents > 1) {
             while (parent1.getName() == parent2_ptr->getName()) {
                 parent2_ptr = &parents[std::rand() % numParents];
@@ -170,54 +181,96 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
 
         float childGeneticCode[12];
 
-        // 2. Crossover et Mutation des 12 Gènes (Indices 0 à 11)
-        for (int j = 0; j < 12; ++j) {
-            // Crossover: 50% de chance d'hériter de Parent 1 ou Parent 2
-            if (std::rand() % 2 == 0) {
-                childGeneticCode[j] = parent1.getGeneticCode()[j];
-            } else {
-                childGeneticCode[j] = parent2.getGeneticCode()[j];
-            }
+        // ---------------------------------------------------------
+        // ÉTAPE 1 : HÉRITAGE DES GÈNES STRUCTURELS (0, 1, 2, 10)
+        // (Taille, Gène Arme, Kite Ratio, Type Ranged/Melee)
+        // ---------------------------------------------------------
+        int structuralGenes[] = {0, 1, 2, 10};
+        for (int idx : structuralGenes) {
+            // Crossover 50/50
+            if (std::rand() % 2 == 0) childGeneticCode[idx] = parent1.getGeneticCode()[idx];
+            else childGeneticCode[idx] = parent2.getGeneticCode()[idx];
 
-            // Mutation: 5% de chance de muter
+            // Petite Mutation
             if ((std::rand() % 100) < MUTATION_CHANCE_PERCENT) {
-                if (j == 11) { // Gène ID (Discret)
-                    int currentID = (int)std::round(childGeneticCode[j]);
-                    int newID;
-                    // Muter vers un ID aléatoire différent
-                    do {
-                        newID = std::rand() % NUMBER_OF_TRAITS;
-                    } while (newID == currentID && NUMBER_OF_TRAITS > 1);
-                    childGeneticCode[j] = (float)newID;
-                }
-                else if (j == 0) { // Rad (Continu)
-                    childGeneticCode[j] += (float)((std::rand() % (2 * RAD_MUTATION_AMOUNT + 1)) - RAD_MUTATION_AMOUNT);
-                    childGeneticCode[j] = std::max(10.0f, std::min(40.0f, childGeneticCode[j])); // Clamp rad
-                }
-                else if (j == 10) { // IsRanged (Binaire)
-                    childGeneticCode[j] = (childGeneticCode[j] == 0.0f) ? 1.0f : 0.0f;
-                }
-                else if (j == 2) { // KiteRatio (Continu, entre 0.1 et 1.0)
-                    childGeneticCode[j] += ((std::rand() % 3) - 1) * KITE_RATIO_MUTATION_AMOUNT; // -0.1, 0, ou +0.1
-                    childGeneticCode[j] = std::clamp(childGeneticCode[j], 0.1f, 1.0f);
-                }
-                else { // Autres gènes Floats (WeaponGene, Fragility, Efficiency, etc.)
+                if (idx == 0) { // Rad
+                    childGeneticCode[idx] += (float)((std::rand() % (2 * RAD_MUTATION_AMOUNT + 1)) - RAD_MUTATION_AMOUNT);
+                    childGeneticCode[idx] = std::max(10.0f, std::min(40.0f, childGeneticCode[idx]));
+                } else if (idx == 10) { // IsRanged (Switch)
+                    childGeneticCode[idx] = (childGeneticCode[idx] < 0.5f) ? 1.0f : 0.0f;
+                } else { // WeaponGene, KiteRatio
                     float mutation = (float)((std::rand() % (2 * GENE_MUTATION_AMOUNT + 1)) - GENE_MUTATION_AMOUNT) / 100.0f;
-                    childGeneticCode[j] += mutation;
+                    childGeneticCode[idx] += mutation;
                 }
             }
         }
 
-        // 3. Création de l'Entité Enfant
+        // ---------------------------------------------------------
+        // ÉTAPE 2 : DÉCISION DU TRAIT DOMINANT (Gène 11)
+        // ET NETTOYAGE DES GÈNES BIO (3 à 9)
+        // ---------------------------------------------------------
+
+        // A. D'abord, on remet tous les gènes bio à 0 pour éviter le bug "Classique mais Myope"
+        for (int idx : bioGeneIndices) {
+            childGeneticCode[idx] = 0.0f;
+        }
+
+        // B. Tirage du destin
+        int roll = std::rand() % 100;
+        int chosenID = 0;
+
+        // --- CAS 1 : CLASSIQUE (65%) ---
+        if (roll < 65) {
+            chosenID = 0;
+            // Les gènes bio restent à 0. L'entité est pure.
+        }
+            // --- CAS 2 : HÉRITAGE SIMPLE (30%) ---
+        else if (roll < 95) {
+            // On choisit un parent au hasard
+            const Entity& pModel = (std::rand() % 2 == 0) ? parent1 : parent2;
+            chosenID = pModel.getCurrentTraitID();
+
+            // Si le parent avait un trait spécial, on copie ses valeurs bio associées
+            if (chosenID != 0) {
+                for (int idx : bioGeneIndices) {
+                    childGeneticCode[idx] = pModel.getGeneticCode()[idx];
+                }
+            }
+        }
+            // --- CAS 3 : MUTATION / DOUBLE (5%) ---
+        else {
+            // On force un trait NON-Classique (1 à 11)
+            chosenID = 1 + (std::rand() % (NUMBER_OF_TRAITS - 1));
+
+            // Si ce trait dépend d'une valeur Float (ex: Myopie, Fragile...), on doit l'initialiser
+            // Sinon, il aura la valeur 0 et n'aura pas d'effet malgré le nom.
+
+            // On génère une valeur aléatoire pour le gène correspondant à l'ID
+            float randomStrength = (float)(20 + (std::rand() % 81)) / 100.0f; // Force entre 0.2 et 1.0
+
+            switch (chosenID) {
+                case 2: childGeneticCode[3] = randomStrength * FRAGILITY_MAX; break; // Fragile
+                case 3: childGeneticCode[4] = randomStrength * EFFICIENCY_MAX; break; // Efficace
+                case 4: childGeneticCode[5] = randomStrength * REGEN_MAX; break;      // Regen
+                case 5: childGeneticCode[6] = randomStrength * MYOPIA_MAX; break;     // Myope
+                case 6: childGeneticCode[7] = randomStrength * AIM_MAX; break;        // Maladroit
+                case 7: childGeneticCode[9] = (float)(1 + std::rand() % 2); break;    // Fertile (Int)
+                case 8: childGeneticCode[8] = randomStrength * AGING_MAX_FLOAT; break;// Vieillissant
+                    // Les IDs 1, 9, 10, 11 (Obèse, Hyperactif...) n'utilisent pas de gènes bio floats,
+                    // ils utilisent juste l'ID dans Entity.cpp, donc rien à faire ici.
+            }
+        }
+
+        // C. Application finale de l'ID
+        childGeneticCode[11] = (float)chosenID;
         std::string newName = "G" + std::to_string(newGen) + "-E" + std::to_string(i + 1);
         int randomRad = (int)childGeneticCode[0];
         int randomX = randomRad + (std::rand() % (WINDOW_WIDTH - 2 * randomRad));
         int randomY = randomRad + (std::rand() % (WINDOW_HEIGHT - 2 * randomRad));
-        SDL_Color newColor = parent1.getColor(); // Couleur héritée de P1
 
         newGeneration.emplace_back(
-                newName, randomX, randomY, newColor,
-                childGeneticCode, // Tableau float[12]
+                newName, randomX, randomY, parent1.getColor(),
+                childGeneticCode,
                 newGen,
                 parent1.getName(),
                 parent2.getName()
@@ -237,36 +290,38 @@ void Simulation::handleEvent(const SDL_Event &event) {
         int mouseY = event.button.y;
         SDL_Point mousePoint = {mouseX, mouseY};
 
-        bool clickHandled = false;
-
         // 1. Gérer les clics sur le panneau d'inspection (si ouvert)
         if (!inspectionStack.empty() && mouseX > panelCurrentX) {
 
+            // Vérification des boutons spécifiques
             if (SDL_PointInRect(&mousePoint, &panelBack_rect) && inspectionStack.size() > 1) {
                 inspectionStack.pop_back(); // Revenir en arrière
-                clickHandled = true;
             }
             else if (SDL_PointInRect(&mousePoint, &panelParent1_rect)) {
-                std::string p1_name = inspectionStack.back().getParent1Name(); //
-                if (genealogyArchive.count(p1_name)) { // "count" vérifie l'existence
-                    inspectionStack.push_back(genealogyArchive.at(p1_name)); // Ajouter le parent 1
-                    clickHandled = true;
+                std::string p1_name = inspectionStack.back().getParent1Name();
+                if (genealogyArchive.count(p1_name)) {
+                    inspectionStack.push_back(genealogyArchive.at(p1_name));
                 }
             }
             else if (SDL_PointInRect(&mousePoint, &panelParent2_rect)) {
                 std::string p2_name = inspectionStack.back().getParent2Name();
                 if (genealogyArchive.count(p2_name)) {
                     inspectionStack.push_back(genealogyArchive.at(p2_name));
-                    clickHandled = true;
                 }
             }
+            // --- CORRECTION ---
+            // Si on est dans cette condition (mouseX > panelCurrentX), c'est qu'on a cliqué SUR le panneau.
+            // Qu'on ait cliqué sur un bouton ou dans le vide du panneau, on DOIT s'arrêter là.
+            // On empêche le clic de traverser vers le monde du jeu.
+            return;
         }
 
-        if (clickHandled) return;
 
-        // Gérer les clics sur les entités
+        // 2. Gérer les clics sur les entités (Monde du jeu)
+        // Ce code ne sera atteint que si on a cliqué EN DEHORS du panneau
         bool entityClicked = false;
         for (auto& entity : entities) {
+            // ... le reste de votre code de sélection d'entité ...
             if (!entity.getIsAlive()) continue;
 
             int dx = mouseX - entity.getX();
@@ -276,16 +331,16 @@ void Simulation::handleEvent(const SDL_Event &event) {
             if (distance < entity.getRad()) {
                 selectedLivingEntity = &entity;
                 inspectionStack.clear();
-                inspectionStack.push_back(entity); // Ajouter l'entité vivante
+                inspectionStack.push_back(entity);
                 entityClicked = true;
                 break;
             }
         }
 
-        //Clic dans le vide
+        // Clic dans le vide (du monde, pas du panel)
         if (!entityClicked) {
             selectedLivingEntity = nullptr;
-            inspectionStack.clear(); // Vider le panneau
+            inspectionStack.clear(); // Fermer le panneau
         }
     }
 }
@@ -512,7 +567,9 @@ void Simulation::render(SDL_Renderer *renderer, bool showDebug) {
 
 void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
 
-    // Utilitaire lambda pour la conversion float/string
+    // --- 0. PRÉPARATION ---
+
+    // Utilitaire lambda pour la conversion float/string (identique à l'original)
     auto float_to_string = [](float val, int precision = 2) {
         std::stringstream ss;
         ss << std::fixed << std::setprecision(precision) << val;
@@ -524,7 +581,7 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
 
     const Entity* entityToDisplay = nullptr;
 
-    // Détermine si on affiche les stats en temps réel ou une copie archivée.
+    // Détermine si on affiche les stats en temps réel ou une copie archivée
     if (inspectionStack.size() == 1 && selectedLivingEntity != nullptr) {
         entityToDisplay = selectedLivingEntity;
     } else {
@@ -533,29 +590,16 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
 
     if (entityToDisplay == nullptr) return;
 
-    // 'entity' est la référence constante aux données
     const Entity& entity = *entityToDisplay;
 
 
-    // --- LOGIQUE D'IDENTIFICATION DU TRAIT DOMINANT ---
-    std::string dominantTrait = "Inconnu";
-    int traitID = entity.getCurrentTraitID();
+    // --- 1. DESSIN DU FOND (FONCTIONNEL) ---
 
-    // Utilisation du tableau statique TRAIT_NAMES
-    const int NUMBER_OF_TRAITS = 12; // Définie dans le namespace
-    if (traitID >= 0 && traitID < NUMBER_OF_TRAITS) {
-        dominantTrait = TRAIT_NAMES[traitID];
-    } else {
-        dominantTrait = "Invalide (" + std::to_string(traitID) + ")";
-    }
-
-
-    // 1. Fond du panneau
     SDL_Rect panelRect = {panelX, 0, PANEL_WIDTH, WINDOW_HEIGHT};
-    SDL_SetRenderDrawColor(renderer, 20, 20, 20, 200);
+    SDL_SetRenderDrawColor(renderer, 20, 20, 20, 240); // Fond légèrement plus opaque
     SDL_RenderFillRect(renderer, &panelRect);
 
-    // 2. Définitions de style
+    // Définitions de style
     int x = panelX + 15;
     int y = 20;
     const int lineHeight = 18;
@@ -563,15 +607,34 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
     const SDL_Color statColor = {255, 255, 255, 255};
     const SDL_Color geneColor = {150, 200, 255, 255};
     const SDL_Color linkColor = {100, 100, 255, 255};
+    const SDL_Color impactColor = {255, 100, 100, 255};
+    const SDL_Color bonusColor = {100, 255, 100, 255};
 
-    // --- Entête et Bouton Retour
+
+    // --- 2. BOUTON RETOUR (HITBOX AJOUTÉE) ---
+
     if (inspectionStack.size() > 1) {
         std::string backText = "< Back";
         stringRGBA(renderer, x + 10, y + 8, backText.c_str(), statColor.r, statColor.g, statColor.b, 255);
+
+        // [NOUVEAU] Mise à jour de la zone de clic pour le bouton Back
+        // On définit un rectangle autour du texte "< Back"
+        panelBack_rect = {x, y, 80, 25};
+
+        // (Optionnel) Un petit cadre visuel pour montrer que c'est un bouton
+        rectangleRGBA(renderer, panelBack_rect.x, panelBack_rect.y,
+                      panelBack_rect.x + panelBack_rect.w, panelBack_rect.y + panelBack_rect.h,
+                      255, 255, 255, 100);
+
         y += 40;
+    } else {
+        // Important : Si le bouton n'est pas là, on vide le rectangle pour éviter les faux clics
+        panelBack_rect = {0, 0, 0, 0};
     }
 
-    // --- BLOC 1 : STATS DE BASE ET GÉNÉALOGIE ---
+
+    // --- 3. STATS DE BASE ---
+
     stringRGBA(renderer, x, y, ("ID: " + entity.getName()).c_str(), titleColor.r, titleColor.g, titleColor.b, 255);
     y += lineHeight * 1.5;
 
@@ -585,23 +648,39 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
     stringRGBA(renderer, x, y, ("Stamina: " + std::to_string(entity.getStamina()) + "/" + std::to_string(entity.getMaxStamina())).c_str(), statColor.r, statColor.g, statColor.b, 255);
     y += lineHeight * 1.5;
 
-    // Généalogie
+
+    // --- 4. GÉNÉALOGIE (HITBOXES AJOUTÉES) ---
+
     stringRGBA(renderer, x, y, "--- Genealogie ---", geneColor.r, geneColor.g, geneColor.b, 255);
     y += lineHeight;
     stringRGBA(renderer, x, y, ("Generation: " + std::to_string(entity.getGeneration())).c_str(), geneColor.r, geneColor.g, geneColor.b, 255);
     y += lineHeight;
 
-    // Liens Parents
+    // Parent 1
     stringRGBA(renderer, x, y, ("Parent 1: " + entity.getParent1Name()).c_str(), linkColor.r, linkColor.g, linkColor.b, 255);
+    // [NOUVEAU] Zone de clic Parent 1
+    panelParent1_rect = {x, y - 2, 250, lineHeight};
     y += lineHeight;
+
+    // Parent 2
     stringRGBA(renderer, x, y, ("Parent 2: " + entity.getParent2Name()).c_str(), linkColor.r, linkColor.g, linkColor.b, 255);
+    // [NOUVEAU] Zone de clic Parent 2
+    panelParent2_rect = {x, y - 2, 250, lineHeight};
     y += lineHeight * 1.5;
 
-    // --- BLOC 2 : TRAIT DOMINANT ET CORPS ---
+
+    // --- 5. BODY STATS & TRAIT DOMINANT ---
+
     stringRGBA(renderer, x, y, "--- Body Stats ---", statColor.r, statColor.g, statColor.b, 255);
     y += lineHeight;
 
-    // AFFICHAGE DU TRAIT DOMINANT
+    // Récupération du nom du trait
+    std::string dominantTrait = "Inconnu";
+    int traitID = entity.getCurrentTraitID();
+    if (traitID >= 0 && traitID < 12) { // 12 étant NUMBER_OF_TRAITS
+        dominantTrait = TRAIT_NAMES[traitID];
+    }
+
     stringRGBA(renderer, x, y, ("Dominant Trait: " + dominantTrait).c_str(), titleColor.r, titleColor.g, titleColor.b, 255);
     y += lineHeight * 1.5;
 
@@ -614,7 +693,9 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
     stringRGBA(renderer, x, y, ("Sight Radius: " + std::to_string(entity.getSightRadius())).c_str(), statColor.r, statColor.g, statColor.b, 255);
     y += lineHeight * 1.5;
 
-    // --- BLOC 3 : GÈNES BRUTS (Bio-Inspirés) ---
+
+    // --- 6. GÈNES STRUCTURELS ---
+
     stringRGBA(renderer, x, y, "--- Genetic Traits ---", geneColor.r, geneColor.g, geneColor.b, 255);
     y += lineHeight;
     stringRGBA(renderer, x, y, (std::string("Type: ") + (entity.getIsRanged() ? "Ranged" : "Melee")).c_str(), geneColor.r, geneColor.g, geneColor.b, 255);
@@ -625,15 +706,12 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
     y += lineHeight * 1.5;
 
 
-    // --- AFFICHAGE DES BIO-TRAITS SIMPLIFIÉS ET TRADUITS (Correction des ID de Trait) ---
+    // --- 7. BIO-TRAITS (DÉTAILS DES BONUS/MALUS) ---
+
     stringRGBA(renderer, x, y, "--- Bio-Traits ---", geneColor.r, geneColor.g, geneColor.b, 255);
     y += lineHeight;
 
-    const SDL_Color impactColor = {255, 100, 100, 255};
-    const SDL_Color bonusColor = {100, 255, 100, 255};
-
-
-    // --- AFFICHAGE DES TRAITS NON-FLOAT (Basés sur l'ID : 0, 1, 9, 10, 11) ---
+    // A. Traits par ID (Discrets)
     if (traitID == 1) { // Obèse
         stringRGBA(renderer, x, y, "Obese: -20.0% Stamina Max", impactColor.r, impactColor.g, impactColor.b, 255);
         y += lineHeight;
@@ -659,10 +737,9 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
         y += lineHeight;
     }
 
+    // B. Traits par Gènes Float (Continus)
 
-    // --- AFFICHAGE DES TRAITS
-
-    // 1. Damage_Fragility (ID 2)
+    // 1. Fragilité (ID 2)
     float fragPercent = entity.getDamageFragility() * 100.0f;
     if (fragPercent > 0.001f) {
         std::string fragStr = "Fragilite: +" + float_to_string(fragPercent, 1) + "% Degats Subis";
@@ -670,7 +747,7 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
         y += lineHeight;
     }
 
-    // 2. Stamina_Efficiency (ID 3)
+    // 2. Efficacité (ID 3)
     float effPercent = entity.getStaminaEfficiency() * 100.0f;
     if (effPercent > 0.001f) {
         std::string effStr = "Stamina Eff: -" + float_to_string(effPercent, 1) + "% Cout";
@@ -678,7 +755,7 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
         y += lineHeight;
     }
 
-    // 3. Base_Health_Regen (ID 4)
+    // 3. Régénération (ID 4)
     float regenRate = entity.getBaseHealthRegen();
     if (regenRate > 0.0001f) {
         std::string regenStr = "Regeneration: +" + float_to_string(regenRate, 3) + " HP/cycle";
@@ -686,7 +763,7 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
         y += lineHeight;
     }
 
-    // 4. MyopiaFactor (ID 5)
+    // 4. Myopie (ID 5)
     float myopiaPercent = entity.getMyopiaFactor() * 100.0f;
     if (myopiaPercent > 0.001f) {
         std::string myopiaStr = "Myopie: -" + float_to_string(myopiaPercent, 1) + "% Vision";
@@ -694,7 +771,7 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
         y += lineHeight;
     }
 
-    // 5. AimingPenalty (ID 6)
+    // 5. Maladresse (ID 6)
     float aimPenalty = entity.getAimingPenalty();
     if (entity.getIsRanged() && aimPenalty > 0.001f) {
         std::string aimStr = "Maladresse: +" + float_to_string(aimPenalty, 1) + " deg Erreur";
@@ -702,7 +779,7 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
         y += lineHeight;
     }
 
-    // 6. FertilityFactor (ID 7)
+    // 6. Fertilité (ID 7)
     int fertility = entity.getFertilityFactor();
     if (fertility > 0) {
         float healthCost = fertility * 5.0f;
@@ -711,7 +788,7 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
         y += lineHeight;
     }
 
-    // 7. AgingRate (ID 8)
+    // 7. Vieillissement (ID 8)
     float agingRate = entity.getAgingRate();
     if (agingRate > 0.00001f) {
         float agingPerThousand = agingRate * 1000.0f;
@@ -722,7 +799,9 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
 
     y += 10;
 
-    // --- BLOC 4 : STATS D'ARMEMENT ---
+
+    // --- 8. WEAPON STATS ---
+
     stringRGBA(renderer, x, y, "--- Weapon Stats ---", statColor.r, statColor.g, statColor.b, 255);
     y += lineHeight;
     stringRGBA(renderer, x, y, ("Damage: " + std::to_string(entity.getDamage())).c_str(), statColor.r, statColor.g, statColor.b, 255);

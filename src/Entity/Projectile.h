@@ -26,7 +26,6 @@ public:
     // Setter
     void setDead() { alive = false; }
 
-
 private:
     float x, y;
     float dx, dy; // Direction normalisée
@@ -39,6 +38,5 @@ private:
     int radius;
     std::string shooterName;
 };
-
 
 #endif //EVOARENA_PROJECTILE_H
