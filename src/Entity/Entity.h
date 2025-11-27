@@ -115,7 +115,7 @@ private:
     int projectileRadius;
     int staminaAttackCost;
     float armor = 0.0f;
-    int regenAmount = 0; 
+    int regenAmount = 0;
 
     // --- Variables de Logique/Temps ---
     int direction[2]{};
