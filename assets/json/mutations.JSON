@@ -1,64 +1,77 @@
 {
-  "Traits_Genetiques_EvoArena": [
-    {
-      "Nom_Gene": "Classique",
-      "Caractéristique": "Vitesse * 1.0",
-      "Caractéristique2": "Fragilite * 0.0"
-    },
-    {
-      "Nom_Gene": "Obèse",
-      "Caractéristique": "stamina * (-0,2)",
-      "Caractéristique2": "rad * 0,2 (Bonus de taille physique)"
-    },
-    {
-      "Nom_Gene": "Fragile",
-      "Caractéristique": "dégâts reçus * (1 + Damage_Fragility)",
-      "Caractéristique2": "health * (-0,05) (Maladie chronique)"
-    },
-    {
-      "Nom_Gene": "Efficace",
-      "Caractéristique": "coût stamina * (1 - Stamina_Efficiency)",
-      "Caractéristique2": "vitesse * 1.0 (Métabolisme lent, neutre en vitesse)"
-    },
-    {
-      "Nom_Gene": "Régénérateur",
-      "Caractéristique": "santé + Base_Health_Regen / cycle",
-      "Caractéristique2": "stamina - 5 / cycle (Coût énergétique)"
-    },
-    {
-      "Nom_Gene": "Myope",
-      "Caractéristique": "rayon vision * (1 - MyopiaFactor)",
-      "Caractéristique2": "précision tir * 1.0 (Neutre)"
-    },
-    {
-      "Nom_Gene": "Maladroit",
-      "Caractéristique": "précision tir * (-AimingPenalty)",
-      "Caractéristique2": "vitesse * 1.0 (Neutre)"
-    },
-    {
-      "Nom_Gene": "Fertile",
-      "Caractéristique": "enfants + FertilityFactor",
-      "Caractéristique2": "Max Santé * (1 - 0.05 * FertilityFactor) (Coût de fertilité)"
-    },
-    {
-      "Nom_Gene": "Vieillissant",
-      "Caractéristique": "Max Sante - AgingRate / cycle",
-      "Caractéristique2": "stamina * 1.0 (Neutre)"
-    },
-    {
-      "Nom_Gene": "Hyperactif",
-      "Caractéristique": "vitesse * 1.2 (Gain de vitesse)",
-      "Caractéristique2": "drain stamina * 2.0 (Double cout d'energie)"
-    },
-    {
-      "Nom_Gene": "Sédentaire",
-      "Caractéristique": "vitesse * 0.7 (Perte de vitesse)",
-      "Caractéristique2": "Max Stamina * 1.15 (Bonus d'economie d'energie)"
-    },
-    {
-      "Nom_Gene": "Robuste",
-      "Caractéristique": "degats recus * (1 - Damage_Resistance)",
-      "Caractéristique2": "stamina * 1.0 (Neutre)"
+  "0": {
+    "name": "Classic",
+    "description": "Standard balanced stats.",
+    "stats": {}
+  },
+  "1": {
+    "name": "Obese",
+    "description": "-20% Max Stamina, +20% Physical Size.",
+    "stats": {
+      "maxStaminaMult": 0.8,
+      "radMult": 1.2
     }
-  ]
+  },
+  "2": {
+    "name": "Fragile",
+    "description": "Takes more damage, -5% Health (Chronic disease).",
+    "stats": {
+      "damageMult": 1.0
+    }
+  },
+  "3": {
+    "name": "Efficient",
+    "description": "Reduced stamina cost for actions.",
+    "stats": {
+      "staminaMoveCostMult": 0.8
+    }
+  },
+  "4": {
+    "name": "Regenerator",
+    "description": "Regenerates Health over time, drains Stamina.",
+    "stats": {}
+  },
+  "5": {
+    "name": "Nearsighted",
+    "description": "Reduced vision radius.",
+    "stats": {}
+  },
+  "6": {
+    "name": "Clumsy",
+    "description": "Reduced aiming accuracy.",
+    "stats": {}
+  },
+  "7": {
+    "name": "Fertile",
+    "description": "More offspring, slightly lower Max Health.",
+    "stats": {}
+  },
+  "8": {
+    "name": "Aging",
+    "description": "Max Health decreases over time.",
+    "stats": {}
+  },
+  "9": {
+    "name": "Hyperactive",
+    "description": "+20% Speed, x2 Movement Energy Cost.",
+    "stats": {
+      "speedMult": 1.2,
+      "staminaMoveCostMult": 2.0
+    }
+  },
+  "10": {
+    "name": "Sedentary",
+    "description": "-30% Speed, +15% Max Stamina.",
+    "stats": {
+      "speedMult": 0.7,
+      "maxStaminaMult": 1.15
+    }
+  },
+  "11": {
+    "name": "Robust",
+    "description": "+30% Armor (Damage Resistance).",
+    "stats": {
+      "armorFlatBonus": 0.30
+    }
+  }
 }

@@ -3,65 +3,83 @@
 #include <utility>
 #include <cmath>
 #include "Entity.h"
+#include "TraitManager.h" // <--- INCLUDE IMPORTANT
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
-
 SDL_Color Entity::generateRandomColor() {
     return { (Uint8)(std::rand() % 256), (Uint8)(std::rand() % 256), (Uint8)(std::rand() % 256), 255 };
 }
 
+// --- FONCTION DE CALCUL DES STATS ---
 void Entity::calculateDerivedStats() {
-    const int rad = (int)geneticCode[0];
+
+    const int radBase = (int)geneticCode[0];
     const bool isRanged = geneticCode[10] > 0.5f;
     const int weaponGene = (int)geneticCode[1];
     const float staminaEfficiency = geneticCode[4];
     const float myopiaFactor = geneticCode[6];
     const int fertilityFactor = (int)geneticCode[9];
-    const int traitID = (int)std::round(geneticCode[11]);
 
+    // Récupération de l'ID du Trait Dominant et des données JSON
+    const int traitID = (int)std::round(geneticCode[11]);
+    const TraitStats& traitStats = TraitManager::get(traitID);
+
+    // STATS DU CORPS DE BASE
     const float HEALTH_MULTIPLIER = 4.0f;
     const float SPEED_BASE = 5.0f;
     const float SPEED_DIVISOR = 50.0f;
     const float MIN_SPEED = 2.0f;
 
-    this->maxHealth = (int)(HEALTH_MULTIPLIER * rad);
+    this->maxHealth = (int)(HEALTH_MULTIPLIER * radBase);
     this->health = this->maxHealth;
 
-    this->speed = (int)(SPEED_BASE + (SPEED_DIVISOR / (float)rad));
-    if (this->speed < MIN_SPEED) this->speed = (int)MIN_SPEED;
+    // Calcul initial vitesse
+    float rawSpeed = SPEED_BASE + (SPEED_DIVISOR / (float)radBase);
 
-    this->maxStamina = (int)(this->maxHealth * 1.5f);
-    this->stamina = this->maxStamina;
-    this->sightRadius = 150 + (rad * 2);
+    // Calcul initial stamina
+    float rawMaxStamina = this->maxHealth * 1.5f;
 
-    float sizeBias = std::clamp(((float)rad - 10.0f) / (40.0f - 10.0f), 0.0f, 1.0f);
+    this->sightRadius = 150 + (radBase * 2);
+
+    // Armure de base (taille)
+    float sizeBias = std::clamp(((float)radBase - 10.0f) / (40.0f - 10.0f), 0.0f, 1.0f);
     this->armor = sizeBias * 0.60f;
     this->regenAmount = 0;
 
-    float finalSpeedMultiplier = 1.0f;
-    float finalMaxStaminaMultiplier = 1.0f;
 
-    switch (traitID) {
-        case 1: finalMaxStaminaMultiplier = 0.8f; break; // Obèse
-        case 9: finalSpeedMultiplier = 1.2f; break; // Hyperactif
-        case 10: finalSpeedMultiplier = 0.7f; finalMaxStaminaMultiplier = 1.15f; break; // Sédentaire
-        case 11: this->armor = std::clamp(this->armor + 0.30f, 0.0f, 0.90f); break; // Robuste
-    }
+    // --- APPLICATION DES STATS DU JSON (TraitManager) ---
 
-    this->speed = (int)(this->speed * finalSpeedMultiplier);
-    this->speed = std::max(this->speed, (int)MIN_SPEED);
-    this->maxStamina = (int)(this->maxStamina * finalMaxStaminaMultiplier);
+    // 1. Vitesse
+    this->speed = (int)(rawSpeed * traitStats.speedMult);
+    if (this->speed < MIN_SPEED) this->speed = (int)MIN_SPEED;
+
+    // 2. Stamina Max
+    this->maxStamina = (int)(rawMaxStamina * traitStats.maxStaminaMult);
     this->stamina = this->maxStamina;
 
+    // 3. Armure (Bonus fixe)
+    this->armor += traitStats.armorFlatBonus;
+    this->armor = std::clamp(this->armor, 0.0f, 0.90f);
+
+    // 4. Modification de la taille visuelle (rad)
+    // Note : geneticCode[0] reste la référence génétique, mais 'rad' membre est modifié
+    this->rad = (int)(radBase * traitStats.radMult);
+
+
+    // --- APPLICATION DES EFFETS GÉNÉTIQUES FLOATS (Traits Individuels) ---
+
+    // Myopie
     this->sightRadius = (int)(this->sightRadius * (1.0f - myopiaFactor));
     if (this->sightRadius < 50) this->sightRadius = 50;
 
+    // Fécondité
     this->maxHealth -= (int)(this->maxHealth * 0.05f * fertilityFactor);
     if (this->maxHealth < 1) this->maxHealth = 1;
     this->health = this->maxHealth;
 
+    // --- STATS D'ARME ---
     if (isRanged) {
         const int MIN_RANGED_DMG = 5;
         const int MAX_RANGED_DMG = 20;
@@ -90,10 +108,13 @@ void Entity::calculateDerivedStats() {
         this->maxHealth += 25;
         this->health = this->maxHealth;
     }
+
+    // Efficacité Stamina
     this->staminaAttackCost = (int)(this->staminaAttackCost * (1.0f - staminaEfficiency));
     if (this->staminaAttackCost < 1) this->staminaAttackCost = 1;
 }
 
+// --- CONSTRUCTEUR ---
 Entity::Entity(std::string name, int x, int y, SDL_Color color,
                const float geneticCode[12], int generation,
                std::string p1_name, std::string p2_name) :
@@ -101,10 +122,19 @@ Entity::Entity(std::string name, int x, int y, SDL_Color color,
         generation(generation),
         parent1_name(std::move(p1_name)),
         parent2_name(std::move(p2_name)){
+
+    // Copie du code génétique
+    for(int i = 0; i < 12; ++i) {
+        this->geneticCode[i] = geneticCode[i];
+    }
+
+    // Initialisation basique
     this->rad = (int)geneticCode[0];
-    for(int i = 0; i < 12; ++i) this->geneticCode[i] = geneticCode[i];
-    direction[0] = 0; direction[1] = 0;
-    std::random_device rd; std::mt19937 gen(rd());
+    direction[0] = 0;
+    direction[1] = 0;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis_angle(0, 2 * M_PI);
     float angle = dis_angle(gen);
     lastVelX = cos(angle); lastVelY = sin(angle);
@@ -113,6 +143,8 @@ Entity::Entity(std::string name, int x, int y, SDL_Color color,
     lastStaminaUseTick = startTime;
     isFleeing = false;
     isCharging = false;
+
+    // Calcul final des stats (y compris TraitManager)
     calculateDerivedStats();
 }
 
@@ -221,11 +253,15 @@ void Entity::update(int speedMultiplier) {
 
     float agingRate = geneticCode[8];
     float baseHealthRegen = geneticCode[5];
+
+    // Vieillissement
     if (agingRate > 0.0f) {
         this->maxHealth -= (int)(this->maxHealth * agingRate * 0.001f * speedMultiplier);
         if (this->maxHealth < 1) this->maxHealth = 1;
         if (this->health > this->maxHealth) this->health = this->maxHealth;
     }
+
+    // Régénération
     if (baseHealthRegen > 0.0f && health < maxHealth) {
         if (currentTime > lastRegenTick + effectiveRegenCooldown) {
             health += (int)baseHealthRegen;
@@ -234,10 +270,17 @@ void Entity::update(int speedMultiplier) {
         }
     }
 
+    // Stamina (Récupération / Fuite)
     bool staminaConsumed = false;
     if (isFleeing) {
+        // Coût de mouvement influencé par le Trait (ex: Hyperactif coûte 2x plus)
+        int traitID = (int)std::round(geneticCode[11]);
+        float moveCostMult = TraitManager::get(traitID).staminaMoveCostMult;
+        int cost = (int)(STAMINA_FLEE_COST_PER_FRAME * moveCostMult);
+        if (cost < 1) cost = 1;
+
         if (stamina > 0) {
-            stamina -= STAMINA_FLEE_COST_PER_FRAME;
+            stamina -= cost;
             lastStaminaUseTick = currentTime;
             staminaConsumed = true;
             if (stamina < 0) stamina = 0;
@@ -281,6 +324,7 @@ void Entity::update(int speedMultiplier) {
         lastVelX = normX; lastVelY = normY;
     }
 
+    // Collisions murs
     bool collided = false;
     if (x < rad) { x = rad; collided = true; }
     else if (x > WINDOW_WIDTH - rad) { x = WINDOW_WIDTH - rad; collided = true; }
@@ -301,20 +345,26 @@ void Entity::chooseDirection(int target[2]) {
         targetX = target[0]; targetY = target[1];
     } else {
         targetX = -1; targetY = -1;
+        direction[0] = target[0]; direction[1] = target[1];
+        targetX = target[0]; targetY = target[1];
+    } else {
+        targetX = -1; targetY = -1;
         const float WANDER_DISTANCE = 90.0f;
         const float WANDER_JITTER_STRENGTH = 0.4f;
         std::random_device rd; std::mt19937 gen(rd());
         std::uniform_real_distribution<> dis_jitter(-1.0, 1.0);
-        float jitterX = dis_jitter(gen); float jitterY = dis_jitter(gen);
-        float jitterMag = std::sqrt(jitterX * jitterX + jitterY * jitterY);
-        if (jitterMag > 0.0f) { jitterX = (jitterX / jitterMag) * WANDER_JITTER_STRENGTH; jitterY = (jitterY / jitterMag) * WANDER_JITTER_STRENGTH; }
-        float newDirX = (lastVelX * (1.0f - WANDER_JITTER_STRENGTH)) + jitterX;
-        float newDirY = (lastVelY * (1.0f - WANDER_JITTER_STRENGTH)) + jitterY;
+        float jitterX = dis_jitter(gen);
+        float jitterY = dis_jitter(gen);
+
+        float newDirX = (lastVelX * (1.0f - WANDER_JITTER_STRENGTH)) + jitterX * WANDER_JITTER_STRENGTH;
+        float newDirY = (lastVelY * (1.0f - WANDER_JITTER_STRENGTH)) + jitterY * WANDER_JITTER_STRENGTH;
+
         float newMag = std::sqrt(newDirX * newDirX + newDirY * newDirY);
         if (newMag > 0.0f) { newDirX /= newMag; newDirY /= newMag; }
         else { std::uniform_real_distribution<> dis_angle(0, 2 * M_PI); float angle = dis_angle(gen); newDirX = cos(angle); newDirY = sin(angle); }
         direction[0] = x + static_cast<int>(newDirX * WANDER_DISTANCE);
         direction[1] = y + static_cast<int>(newDirY * WANDER_DISTANCE);
+        lastVelX = newDirX; lastVelY = newDirY;
         lastVelX = newDirX; lastVelY = newDirY;
     }
 }
@@ -353,12 +403,14 @@ void Entity::knockBackFrom(int sourceX, int sourceY, int force) {
 void Entity::takeDamage(int amount) {
     if (!isAlive) return;
     float damageFragility = geneticCode[3];
+    float damageFragility = geneticCode[3];
     float totalDamageModifier = (1.0f - armor) + damageFragility;
     int damageTaken = static_cast<int>(amount * totalDamageModifier);
     if (damageTaken < 1 && amount > 0) damageTaken = 1;
     this->health -= damageTaken;
     if (this->health <= 0) { health = 0; die(); }
 }
+
 
 bool Entity::consumeStamina(int amount) {
     float staminaEfficiency = geneticCode[4];

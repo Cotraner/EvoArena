@@ -38,6 +38,8 @@ private:
 
     float panelTargetX;
     float panelCurrentX;
+
+    // UI Hitboxes
     SDL_Rect panelParent1_rect{};
     SDL_Rect panelParent2_rect{};
     SDL_Rect panelBack_rect{};
