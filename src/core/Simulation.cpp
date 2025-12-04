@@ -180,6 +180,8 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
         );
     }
     entities = std::move(newGeneration);
+    selectedLivingEntity = nullptr;
+    inspectionStack.clear();
 }
 
 void Simulation::triggerManualRestart() { triggerReproduction(lastSurvivors); }
