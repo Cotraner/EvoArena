@@ -6,7 +6,7 @@
   },
   "1": {
     "name": "Obese",
-    "description": "-20% Max Stamina, +20% Physical Size.",
+    "description": "-20% Max Stamina\n+20% Physical Size",
     "stats": {
       "maxStaminaMult": 0.8,
       "radMult": 1.2
@@ -14,14 +14,15 @@
   },
   "2": {
     "name": "Fragile",
-    "description": "Takes more damage, -5% Health (Chronic disease).",
+    "description": "Takes more damage\n-5% Health (Chronic disease).",
     "stats": {
-      "damageMult": 1.0
+      "damageTakenMult": 1.2,
+      "maxHealthMult": 0.95
     }
   },
   "3": {
     "name": "Efficient",
-    "description": "Reduced stamina cost for actions.",
+    "description": "Reduced stamina cost for actions.\n-20% Stamina Cost for Movement.",
     "stats": {
       "staminaMoveCostMult": 0.8
     }
@@ -29,49 +30,59 @@
   "4": {
     "name": "Regenerator",
     "description": "Regenerates Health over time, drains Stamina.",
-    "stats": {}
+    "stats": {
+      "healthRegenFlat": 1.0,
+      "staminaRegenMult": 0.5
+    }
   },
   "5": {
     "name": "Nearsighted",
     "description": "Reduced vision radius.",
-    "stats": {}
+    "stats": {
+      "visionRadiusMult": 0.7
+    }
   },
   "6": {
     "name": "Clumsy",
     "description": "Reduced aiming accuracy.",
-    "stats": {}
+    "stats": {
+      "accuracyMult": 0.7
+    }
   },
   "7": {
     "name": "Fertile",
     "description": "More offspring, slightly lower Max Health.",
-    "stats": {}
+    "stats": {
+      "fertilityMult": 1.5,
+      "maxHealthMult": 0.9
+    }
   },
   "8": {
     "name": "Aging",
     "description": "Max Health decreases over time.",
-    "stats": {}
+    "stats": {
+      "healthDecayRate": 0.5
+    }
   },
   "9": {
     "name": "Hyperactive",
-    "description": "+20% Speed, x2 Movement Energy Cost.",
+    "description": "+20% Speed",
     "stats": {
-      "speedMult": 1.2,
-      "staminaMoveCostMult": 2.0
+      "speedMult": 1.2
     }
   },
   "10": {
     "name": "Sedentary",
-    "description": "-30% Speed, +15% Max Stamina.",
+    "description": "-30% Speed",
     "stats": {
-      "speedMult": 0.7,
-      "maxStaminaMult": 1.15
+      "speedMult": 0.7
     }
   },
   "11": {
     "name": "Robust",
-    "description": "+30% Armor (Damage Resistance).",
+    "description": "+30% Armor.",
     "stats": {
-      "armorFlatBonus": 0.30
+      "armorMult": 1.3
     }
   }
 }
