@@ -1,4 +1,3 @@
-
 #ifndef EVOARENA_ENTITY_H
 #define EVOARENA_ENTITY_H
 
@@ -10,6 +9,7 @@
 #include <string>
 #include <cstdlib>
 #include <map>
+#include <cmath>
 
 class Projectile;
 
@@ -24,9 +24,33 @@ public:
     void draw(SDL_Renderer* renderer, bool showDebug = false);
     void chooseDirection(int target[2] = nullptr);
 
-    // --- KNOCKBACK REVU ---
+    // --- KNOCKBACK ---
     void knockBackFrom(int sourceX, int sourceY, int force);
 
+    // 0 = Melee, 1 = Ranged, 2 = Healer
+    int getEntityType() const {
+        float val = geneticCode[10];
+        if (val < 0.33f) return 0; // Melee
+        if (val < 0.66f) return 1; // Ranged
+        return 2;                  // Healer
+    }
+
+    // Reçoit du soin (borné au maxHealth)
+    void receiveHealing(int amount) {
+        if (!isAlive) return;
+        health += amount;
+        if (health > maxHealth) health = maxHealth;
+    }
+
+    // Vérifie si l'autre entité est un allié (basé sur la couleur)
+    bool isAlliedWith(const Entity& other) const {
+        int diff = std::abs(color.r - other.color.r) +
+                   std::abs(color.g - other.color.g) +
+                   std::abs(color.b - other.color.b);
+        return diff < 40; // Tolérance de couleur pour la "famille"
+    }
+
+    // --- Setters / Actions ---
     void clearTarget() { targetX = -1; targetY = -1; }
     void setX(int newX) { x = newX; }
     void setY(int newY) { y = newY; }
@@ -49,7 +73,10 @@ public:
     const float* getGeneticCode() const { return geneticCode; }
     float getKiteRatio() const { return geneticCode[2]; }
     float getWeaponGene() const { return geneticCode[1]; }
-    bool getIsRanged() const { return geneticCode[10] > 0.5f; }
+
+    // Note: getIsRanged est conservé pour compatibilité, mais getEntityType est préféré
+    bool getIsRanged() const { return getEntityType() == 1; }
+
     int getGeneration() const { return generation; }
     std::string getParent1Name() const { return parent1_name; }
     std::string getParent2Name() const { return parent2_name; }
