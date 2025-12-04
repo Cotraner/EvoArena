@@ -22,6 +22,7 @@ class TraitManager {
 public:
     static void loadTraits(const std::string& filepath);
     static const TraitStats& get(int id);
+    static int getCount() { return (int)traitDatabase.size(); }
 
 private:
     static std::map<int, TraitStats> traitDatabase;
