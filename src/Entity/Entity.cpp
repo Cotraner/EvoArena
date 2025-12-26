@@ -15,86 +15,128 @@ SDL_Color Entity::generateRandomColor() {
 
 // --- FONCTION DE CALCUL DES STATS ---
 void Entity::calculateDerivedStats() {
-
+    // 1. Récupération des Gènes Bruts
     const int radBase = (int)geneticCode[0];
     const int entityType = getEntityType();
-    const int weaponGene = (int)geneticCode[1];
+    const int weaponGene = (int)geneticCode[1]; // 0-100
     const float staminaEfficiency = geneticCode[4];
     const float myopiaFactor = geneticCode[6];
     const int fertilityFactor = (int)geneticCode[9];
 
+    // Récupération du Trait Spécial (JSON)
     const int traitID = (int)std::round(geneticCode[11]);
     const TraitStats& traitStats = TraitManager::get(traitID);
 
+    // 2. Constantes d'équilibrage global
     const float HEALTH_MULTIPLIER = 4.0f;
     const float SPEED_BASE = 5.0f;
     const float SPEED_DIVISOR = 50.0f;
     const float MIN_SPEED = 2.0f;
 
+    // --- CALCULS DE BASE (Corps) ---
     this->maxHealth = (int)(HEALTH_MULTIPLIER * radBase);
-    this->health = this->maxHealth;
 
+    // Vitesse : Plus on est gros, plus on est lent
     float rawSpeed = SPEED_BASE + (SPEED_DIVISOR / (float)radBase);
+
+    // Endurance
     float rawMaxStamina = this->maxHealth * 1.5f;
 
+    // Vision
     this->sightRadius = 150 + (radBase * 2);
 
+    // Armure naturelle (basée sur la taille : gros = +armure)
+    // On normalise la taille (10 à 40) vers un ratio 0.0 à 1.0
     float sizeBias = std::clamp(((float)radBase - 10.0f) / (40.0f - 10.0f), 0.0f, 1.0f);
-    this->armor = sizeBias * 0.60f;
+    this->armor = sizeBias * 0.40f; // Max 40% d'armure naturelle
     this->regenAmount = 0;
 
 
-    // --- TRAIT MANAGER ---
+    // --- APPLICATION DU TRAIT MANAGER (JSON) ---
+    // C'est ici que les mutations changent la donne
     this->speed = (int)(rawSpeed * traitStats.speedMult);
     if (this->speed < MIN_SPEED) this->speed = (int)MIN_SPEED;
+
     this->maxStamina = (int)(rawMaxStamina * traitStats.maxStaminaMult);
-    this->stamina = this->maxStamina;
-    this->armor += traitStats.armorFlatBonus;
-    this->armor = std::clamp(this->armor, 0.0f, 0.90f);
+    this->stamina = this->maxStamina; // On commence full stamina
+
     this->rad = (int)(radBase * traitStats.radMult);
 
-    // --- GENES FLOATS ---
+    // Armure bonus du trait + Application (Si tu ajoutes armorMult un jour, mets-le ici)
+    this->armor += traitStats.armorFlatBonus;
+
+    // --- APPLICATION DES GÈNES BIOLOGIQUES (Malus/Bonus) ---
+
+    // Myopie
     this->sightRadius = (int)(this->sightRadius * (1.0f - myopiaFactor));
     if (this->sightRadius < 50) this->sightRadius = 50;
 
-    this->maxHealth -= (int)(this->maxHealth * 0.05f * fertilityFactor);
+    // Fertilité : Le coût en PV pour être fertile
+    // -10% de PV max par point de fertilité
+    this->maxHealth -= (int)(this->maxHealth * 0.10f * fertilityFactor);
+
+    // Application finale PV Max du trait (ex: Fragile)
+    this->maxHealth = (int)(this->maxHealth * traitStats.maxHealthMult); // Assure-toi que TraitStats a ce champ ou utilise un défaut
     if (this->maxHealth < 1) this->maxHealth = 1;
     this->health = this->maxHealth;
 
-    // --- STATS ARME & CLASSE ---
-    if (entityType == 1 || entityType == 2) { // Ranged & Healer
-        const int MIN_RANGED_DMG = 5; const int MAX_RANGED_DMG = 20;
-        const int MIN_RANGED_RANGE = 150; const int MAX_RANGED_RANGE = 600;
-        float powerBias = (float)weaponGene / 100.0f;
+
+    // --- STATS DE COMBAT (Arme & Classe) ---
+
+    // Multiplicateur global de dégâts venant du Trait (ex: Glass Cannon x2.5)
+    float traitDmgMult = traitStats.damageMult;
+
+    if (entityType == 1 || entityType == 2) {
+        // === RANGED & HEALER ===
+        const int MIN_RANGED_DMG = 5; const int MAX_RANGED_DMG = 25;
+        const int MIN_RANGED_RANGE = 180; const int MAX_RANGED_RANGE = 650;
+
+        float powerBias = (float)weaponGene / 100.0f; // Plus proche de 100 = Plus de dégâts, moins de vitesse
         float rangeBias = 1.0f - powerBias;
 
         damage = MIN_RANGED_DMG + (int)(powerBias * (MAX_RANGED_DMG - MIN_RANGED_DMG));
-        attackRange = MIN_RANGED_RANGE + (int)(rangeBias * (MAX_RANGED_RANGE - MIN_RANGED_RANGE));
-        attackCooldown = 500 + (Uint32)(powerBias * 2000);
-        projectileSpeed = 12 - (int)(powerBias * 8);
-        projectileRadius = 4 + (int)(powerBias * 8);
-        staminaAttackCost = 5 + (int)(powerBias * 15);
 
-        if (entityType == 2) { // Bonus Healer
-            this->maxHealth = (int)(this->maxHealth * 1.5f);
+        // Application du bonus de dégâts du trait
+        damage = (int)(damage * traitDmgMult);
+
+        attackRange = MIN_RANGED_RANGE + (int)(rangeBias * (MAX_RANGED_RANGE - MIN_RANGED_RANGE));
+        attackCooldown = 500 + (Uint32)(powerBias * 2000); // Tire moins vite si fait mal
+        projectileSpeed = 14 - (int)(powerBias * 6);
+        projectileRadius = 4 + (int)(powerBias * 8);
+        staminaAttackCost = 5 + (int)(powerBias * 20);
+
+        if (entityType == 2) { // Spécialisation Healer
+            this->maxHealth = (int)(this->maxHealth * 1.3f); // Un peu plus tanky
             this->health = this->maxHealth;
-            this->armor = std::clamp(this->armor + 0.20f, 0.0f, 0.90f);
-            this->speed = (int)(this->speed * 0.9f);
-            damage = (int)(damage * 0.8f); if (damage < 1) damage = 1;
-            attackRange = (int)(attackRange * 0.8f);
+            this->armor += 0.10f;
+            damage = (int)(damage * 0.5f); // Soigne/Tape moins fort
+            if (damage < 1) damage = 1;
         }
-    } else { // Melee
-        const int MIN_MELEE_DMG = 15; const int MAX_MELEE_DMG = 55;
-        const int MIN_MELEE_COOLDOWN = 150; const int MAX_MELEE_COOLDOWN = 600;
+    } else {
+        // === MELEE ===
+        const int MIN_MELEE_DMG = 15; const int MAX_MELEE_DMG = 60;
+        const int MIN_MELEE_COOLDOWN = 400; const int MAX_MELEE_COOLDOWN = 1200;
+
         damage = MIN_MELEE_DMG + (int)(sizeBias * (MAX_MELEE_DMG - MIN_MELEE_DMG));
+
+        // Application du bonus de dégâts du trait (Les Melee Glass Cannon font très mal)
+        damage = (int)(damage * traitDmgMult);
+
         attackCooldown = MIN_MELEE_COOLDOWN + (Uint32)(sizeBias * (MAX_MELEE_COOLDOWN - MIN_MELEE_COOLDOWN));
-        attackRange = 50 + (int)(sizeBias * 40);
+        attackRange = 50 + (int)(sizeBias * 40); // Portée dépend de la taille
         projectileSpeed = 0; projectileRadius = 0;
-        staminaAttackCost = 5 + (int)(sizeBias * 15);
-        this->armor = std::clamp(this->armor + 0.25f, 0.0f, 0.90f);
-        this->maxHealth += 25; this->health = this->maxHealth;
+        staminaAttackCost = 10 + (int)(sizeBias * 20);
+
+        // Bonus inné Melee
+        this->armor += 0.15f;
+        this->maxHealth += 20;
+        this->health = this->maxHealth;
     }
 
+    // CAP FINAL ARMURE : Personne ne dépasse 85% de réduction
+    this->armor = std::clamp(this->armor, 0.0f, 0.85f);
+
+    // Efficacité endurance (Gène)
     this->staminaAttackCost = (int)(this->staminaAttackCost * (1.0f - staminaEfficiency));
     if (this->staminaAttackCost < 1) this->staminaAttackCost = 1;
 }

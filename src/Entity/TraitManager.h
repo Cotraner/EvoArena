@@ -16,6 +16,11 @@ struct TraitStats {
     float damageMult = 1.0f;
     float armorFlatBonus = 0.0f;
     float staminaMoveCostMult = 1.0f;
+
+    // --- NOUVELLES STATS AJOUTÉES POUR L'ÉQUILIBRAGE ---
+    float maxHealthMult = 1.0f;      // Pour Fragile/Obese (ex: 0.8)
+    float fertilityMult = 1.0f;      // Pour Fertile (ex: 2.0)
+    float damageTakenMult = 1.0f;    // Pour Fragile (ex: 1.5)
 };
 
 class TraitManager {

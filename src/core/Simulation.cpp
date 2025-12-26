@@ -98,33 +98,72 @@ void Simulation::initialize(int initialEntityCount) {
 void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
     std::vector<Entity> newGeneration;
     int numParents = parents.size();
-    if (parents.empty() || numParents < 2) { initialize(this->maxEntities); return; }
+
+    // Sécurité : S'il n'y a pas assez de survivants, on redémarre tout
+    if (parents.empty() || numParents < 2) {
+        initialize(this->maxEntities);
+        return;
+    }
+
     int newGen = parents[0].getGeneration() + 1;
     this->currentGeneration = newGen;
     const std::vector<int> bioGeneIndices = {3, 4, 5, 6, 7, 8, 9};
 
+    // --- CRÉATION DE LA LOTERIE (La partie clé pour l'équilibrage) ---
+    std::vector<int> parentLottery;
+    parentLottery.reserve(numParents * 10); // Pré-allocation pour la perf
+
+    for (int i = 0; i < numParents; ++i) {
+        // Ticket de base pour avoir survécu
+        int tickets = 1;
+
+        // Bonus via le Gène de Fertilité (valeur 0, 1 ou 2)
+        // Un gène fertilité de 2 donne +6 tickets !
+        tickets += parents[i].getFertilityFactor() * 3;
+
+        // Bonus via le Trait "Fertile" (ID 7 dans ton JSON)
+        // Cela rend le trait Fertile extrêmement puissant pour la survie de l'espèce
+        if (parents[i].getCurrentTraitID() == 7) {
+            tickets += 15;
+        }
+
+        // On ajoute les tickets dans l'urne
+        for (int t = 0; t < tickets; ++t) {
+            parentLottery.push_back(i);
+        }
+    }
+
+    // --- GÉNÉRATION DES ENFANTS ---
     for (int i = 0; i < maxEntities; ++i) {
-        const Entity& parent1 = parents[std::rand() % numParents];
-        const Entity* parent2_ptr = &parents[std::rand() % numParents];
-        if (numParents > 1) {
-            while (parent1.getName() == parent2_ptr->getName()) {
-                parent2_ptr = &parents[std::rand() % numParents];
-            }
+        // Sélection des parents via la loterie
+        int p1_index = parentLottery[std::rand() % parentLottery.size()];
+        int p2_index = parentLottery[std::rand() % parentLottery.size()];
+
+        const Entity& parent1 = parents[p1_index];
+        const Entity* parent2_ptr = &parents[p2_index];
+
+        // On essaie d'éviter l'auto-fécondation si possible (sauf s'il ne reste qu'un survivant dominant)
+        int attempts = 0;
+        while (parent1.getName() == parent2_ptr->getName() && attempts < 10) {
+            p2_index = parentLottery[std::rand() % parentLottery.size()];
+            parent2_ptr = &parents[p2_index];
+            attempts++;
         }
         const Entity& parent2 = *parent2_ptr;
-        float childGeneticCode[12];
 
+        // --- Crossover & Mutation (Code existant conservé et optimisé) ---
+        float childGeneticCode[12];
         int structuralGenes[] = {0, 1, 2, 10};
+
+        // 1. Gènes Structurels
         for (int idx : structuralGenes) {
-            if (std::rand() % 2 == 0) childGeneticCode[idx] = parent1.getGeneticCode()[idx];
-            else childGeneticCode[idx] = parent2.getGeneticCode()[idx];
+            childGeneticCode[idx] = (std::rand() % 2 == 0) ? parent1.getGeneticCode()[idx] : parent2.getGeneticCode()[idx];
 
             if ((std::rand() % 100) < MUTATION_CHANCE_PERCENT) {
-                if (idx == 0) {
+                if (idx == 0) { // Rayon (Taille)
                     childGeneticCode[idx] += (float)((std::rand() % (2 * RAD_MUTATION_AMOUNT + 1)) - RAD_MUTATION_AMOUNT);
                     childGeneticCode[idx] = std::max(10.0f, std::min(40.0f, childGeneticCode[idx]));
-                } else if (idx == 10) {
-                    // Mutation progressive du rôle
+                } else if (idx == 10) { // Rôle (Melee/Ranged/Healer)
                     float change = (float)((std::rand() % 21) - 10) / 100.0f;
                     childGeneticCode[idx] = std::clamp(childGeneticCode[idx] + change, 0.0f, 1.0f);
                 } else {
@@ -133,9 +172,9 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
             }
         }
 
+        // 2. Gènes Biologiques
         for (int idx : bioGeneIndices) {
-            if (std::rand() % 2 == 0) childGeneticCode[idx] = parent1.getGeneticCode()[idx];
-            else childGeneticCode[idx] = parent2.getGeneticCode()[idx];
+            childGeneticCode[idx] = (std::rand() % 2 == 0) ? parent1.getGeneticCode()[idx] : parent2.getGeneticCode()[idx];
             if ((std::rand() % 100) < MUTATION_CHANCE_PERCENT) {
                 float mutation = (float)((std::rand() % (2 * GENE_MUTATION_AMOUNT + 1)) - GENE_MUTATION_AMOUNT) / 100.0f;
                 childGeneticCode[idx] += mutation;
@@ -143,17 +182,18 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
             }
         }
 
+        // 3. Héritage du Trait (ID 11)
         int chosenID = 0;
         int roll = std::rand() % 100;
         if (roll < 45) chosenID = parent1.getCurrentTraitID();
         else if (roll < 90) chosenID = parent2.getCurrentTraitID();
         else {
             int maxTraits = TraitManager::getCount();
-            if (maxTraits > 1) chosenID = 1 + (std::rand() % (maxTraits - 1));
-            else chosenID = 0;
+            if (maxTraits > 1) chosenID = 1 + (std::rand() % (maxTraits - 1)); // Mutation de trait aléatoire
         }
         childGeneticCode[11] = (float)chosenID;
 
+        // Création de l'entité
         std::string newName = "G" + std::to_string(newGen) + "-E" + std::to_string(i + 1);
         int randomRad = (int)childGeneticCode[0];
         int randomX = randomRad + (std::rand() % (WINDOW_WIDTH - 2 * randomRad));
@@ -161,6 +201,7 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
 
         newGeneration.emplace_back(newName, randomX, randomY, parent1.getColor(), childGeneticCode, newGen, parent1.getName(), parent2.getName());
     }
+
     entities = std::move(newGeneration);
     selectedLivingEntity = nullptr;
     inspectionStack.clear();
@@ -338,74 +379,151 @@ void Simulation::updateLogic(int speedMultiplier) {
 }
 
 void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
-    auto float_to_string = [](float val, int precision = 2) { std::stringstream ss; ss << std::fixed << std::setprecision(precision) << val; return ss.str(); };
+    auto float_to_string = [](float val, int precision = 1) {
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(precision) << val;
+        return ss.str();
+    };
+
     if (inspectionStack.empty()) return;
+
     const Entity* entityToDisplay = (inspectionStack.size() == 1 && selectedLivingEntity) ? selectedLivingEntity : &inspectionStack.back();
     if (!entityToDisplay) return;
     const Entity& entity = *entityToDisplay;
 
     SDL_Rect panelRect = {panelX, 0, PANEL_WIDTH, WINDOW_HEIGHT};
-    SDL_SetRenderDrawColor(renderer, 20, 20, 20, 240); SDL_RenderFillRect(renderer, &panelRect);
-    int x = panelX + 15; int y = 20; const int lineHeight = 18;
-    SDL_Color titleColor = {255, 255, 0, 255}; SDL_Color statColor = {255, 255, 255, 255};
-    SDL_Color geneColor = {150, 200, 255, 255}; SDL_Color linkColor = {100, 100, 255, 255};
-    SDL_Color impactColor = {255, 100, 100, 255}; SDL_Color bonusColor = {100, 255, 100, 255};
+    SDL_SetRenderDrawColor(renderer, 20, 20, 20, 240);
+    SDL_RenderFillRect(renderer, &panelRect);
+
+    int x = panelX + 15;
+    int y = 20;
+    const int lineHeight = 18;
+
+    SDL_Color titleColor  = {255, 215, 0, 255};
+    SDL_Color statColor   = {220, 220, 220, 255};
+    SDL_Color geneColor   = {100, 200, 255, 255};
+    SDL_Color linkColor   = {80, 80, 255, 255};
+    SDL_Color badColor    = {255, 100, 100, 255};
+    SDL_Color goodColor   = {100, 255, 100, 255};
 
     if (inspectionStack.size() > 1) {
         stringRGBA(renderer, x + 10, y + 8, "< Back", statColor.r, statColor.g, statColor.b, 255);
-        panelBack_rect = {x, y, 80, 25}; rectangleRGBA(renderer, panelBack_rect.x, panelBack_rect.y, panelBack_rect.x+panelBack_rect.w, panelBack_rect.y+panelBack_rect.h, 255,255,255,100); y += 40;
-    } else panelBack_rect = {0,0,0,0};
+        panelBack_rect = {x, y, 80, 25};
+        rectangleRGBA(renderer, panelBack_rect.x, panelBack_rect.y, panelBack_rect.x+panelBack_rect.w, panelBack_rect.y+panelBack_rect.h, 255,255,255,100);
+        y += 40;
+    } else {
+        panelBack_rect = {0,0,0,0};
+    }
 
+    // --- EN-TÊTE ---
     stringRGBA(renderer, x, y, ("ID: " + entity.getName()).c_str(), titleColor.r, titleColor.g, titleColor.b, 255); y += lineHeight*1.5;
-    stringRGBA(renderer, x, y, (entityToDisplay == selectedLivingEntity ? "Health: " + std::to_string(entity.getHealth()) : "Health: (Decede)").c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
+
+    std::string hpStr = entityToDisplay == selectedLivingEntity ? std::to_string(entity.getHealth()) : "(Decede)";
+    stringRGBA(renderer, x, y, ("Health: " + hpStr + " / " + std::to_string(entity.getMaxHealth())).c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
+
     stringRGBA(renderer, x, y, ("Stamina: " + std::to_string(entity.getStamina())).c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight*1.5;
 
+    // --- GÉNÉALOGIE ---
     stringRGBA(renderer, x, y, "--- Genealogie ---", geneColor.r, geneColor.g, geneColor.b, 255); y += lineHeight;
     stringRGBA(renderer, x, y, ("Gen: " + std::to_string(entity.getGeneration())).c_str(), geneColor.r, geneColor.g, geneColor.b, 255); y += lineHeight;
-    stringRGBA(renderer, x, y, ("P1: " + entity.getParent1Name()).c_str(), linkColor.r, linkColor.g, linkColor.b, 255); panelParent1_rect = {x, y - 2, 250, lineHeight}; y += lineHeight;
-    stringRGBA(renderer, x, y, ("P2: " + entity.getParent2Name()).c_str(), linkColor.r, linkColor.g, linkColor.b, 255); panelParent2_rect = {x, y - 2, 250, lineHeight}; y += lineHeight*1.5;
 
+    stringRGBA(renderer, x, y, ("P1: " + entity.getParent1Name()).c_str(), linkColor.r, linkColor.g, linkColor.b, 255);
+    panelParent1_rect = {x, y - 2, 250, lineHeight}; y += lineHeight;
+
+    stringRGBA(renderer, x, y, ("P2: " + entity.getParent2Name()).c_str(), linkColor.r, linkColor.g, linkColor.b, 255);
+    panelParent2_rect = {x, y - 2, 250, lineHeight}; y += lineHeight*1.5;
+
+    // --- BODY STATS ---
     stringRGBA(renderer, x, y, "--- Body Stats ---", statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
-    int traitID = entity.getCurrentTraitID();
-    std::string typeStr = "Melee"; int eType = entity.getEntityType(); if(eType == 1) typeStr = "Ranged"; else if(eType == 2) typeStr = "Healer";
+
+    std::string typeStr = "Melee";
+    int eType = entity.getEntityType();
+    if(eType == 1) typeStr = "Ranged"; else if(eType == 2) typeStr = "Healer";
+
     stringRGBA(renderer, x, y, ("Type: " + typeStr).c_str(), geneColor.r, geneColor.g, geneColor.b, 255); y += lineHeight;
-    stringRGBA(renderer, x, y, ("Rad: " + std::to_string(entity.getRad())).c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
+    stringRGBA(renderer, x, y, ("Rad (Size): " + std::to_string(entity.getRad())).c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
     stringRGBA(renderer, x, y, ("Speed: " + std::to_string(entity.getSpeed())).c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
     stringRGBA(renderer, x, y, ("Armor: " + float_to_string(entity.getArmor()*100) + "%").c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight*1.5;
 
+    // --- BIO-TRAITS ---
     stringRGBA(renderer, x, y, "--- Bio-Traits ---", geneColor.r, geneColor.g, geneColor.b, 255); y += lineHeight;
-    const TraitStats& stats = TraitManager::get(traitID);
-    stringRGBA(renderer, x, y, ("Trait: " + stats.name).c_str(), titleColor.r, titleColor.g, titleColor.b, 255); y += lineHeight*1.5;
-    if (traitID != 0 && !stats.description.empty()) { stringRGBA(renderer, x, y, stats.description.c_str(), impactColor.r, impactColor.g, impactColor.b, 255); y += lineHeight; }
-    else if (traitID == 0) { stringRGBA(renderer, x, y, "Classic : Neutral", statColor.r, statColor.g, statColor.b, 255); y += lineHeight; }
 
-    float frag = entity.getDamageFragility()*100; if(frag > 0.1) { stringRGBA(renderer, x, y, ("Weak: +" + float_to_string(frag,1) + "% Dmg").c_str(), impactColor.r, impactColor.g, impactColor.b, 255); y += lineHeight; }
-    float myop = entity.getMyopiaFactor()*100; if(myop > 0.1) { stringRGBA(renderer, x, y, ("Myopic: -" + float_to_string(myop,1) + "% Vision").c_str(), impactColor.r, impactColor.g, impactColor.b, 255); y += lineHeight; }
+    int traitID = entity.getCurrentTraitID();
+    const TraitStats& stats = TraitManager::get(traitID);
+
+    std::string fullTraitTitle = stats.name;
+    if (entity.getDamageFragility() > 0.10f) fullTraitTitle += " / Weak";
+    if (entity.getMyopiaFactor() > 0.15f)    fullTraitTitle += " / Myopic";
+    if (entity.getFertilityFactor() > 0)     fullTraitTitle += " / Fertile";
+    if (entity.getAgingRate() > 0.0001f)     fullTraitTitle += " / Decaying";
+    if (entity.getAimingPenalty() > 2.0f)    fullTraitTitle += " / Clumsy";
+
+    stringRGBA(renderer, x, y, ("Trait: " + fullTraitTitle).c_str(), titleColor.r, titleColor.g, titleColor.b, 255); y += lineHeight;
+
+    if (traitID != 0 && !stats.description.empty()) {
+        stringRGBA(renderer, x, y, stats.description.c_str(), statColor.r, statColor.g, statColor.b, 255);
+        y += lineHeight;
+    }
+
+    y += 5;
+
+    float frag = entity.getDamageFragility() * 100.0f;
+    if(frag > 1.0f) {
+        stringRGBA(renderer, x, y, ("(Weak) Dmg Taken: +" + float_to_string(frag,1) + "%").c_str(), badColor.r, badColor.g, badColor.b, 255);
+        y += lineHeight;
+    }
+
+    float myop = entity.getMyopiaFactor() * 100.0f;
+    if(myop > 1.0f) {
+        stringRGBA(renderer, x, y, ("(Myopic) Vision: -" + float_to_string(myop,1) + "%").c_str(), badColor.r, badColor.g, badColor.b, 255);
+        y += lineHeight;
+    }
+
+    int fert = entity.getFertilityFactor();
+    if(fert > 0) {
+        // --- CORRECTION : PLUS DE .c_str() ICI ---
+        stringRGBA(renderer, x, y, "(Fertile) Reproduction Bonus: ++", goodColor.r, goodColor.g, goodColor.b, 255);
+        y += lineHeight;
+        stringRGBA(renderer, x, y, "          Max HP Penalty: -", badColor.r, badColor.g, badColor.b, 255);
+        y += lineHeight;
+    }
+
     y += 10;
+
+    // --- WEAPON STATS ---
     stringRGBA(renderer, x, y, "--- Weapon Stats ---", statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
     stringRGBA(renderer, x, y, ("Damage: " + std::to_string(entity.getDamage())).c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
-    stringRGBA(renderer, x, y, ("Attack Range: " + std::to_string(entity.getAttackRange())).c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
+    stringRGBA(renderer, x, y, ("Range: " + std::to_string(entity.getAttackRange())).c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
     stringRGBA(renderer, x, y, ("Cooldown: " + std::to_string(entity.getAttackCooldown()) + " ms").c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
     stringRGBA(renderer, x, y, ("Stamina Cost: " + std::to_string(entity.getStaminaAttackCost())).c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
-    if (entity.getIsRanged()) {
+
+    if (entity.getProjectileSpeed() > 0) {
         stringRGBA(renderer, x, y, ("Proj Speed: " + std::to_string(entity.getProjectileSpeed())).c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
         stringRGBA(renderer, x, y, ("Proj Radius: " + std::to_string(entity.getProjectileRadius())).c_str(), statColor.r, statColor.g, statColor.b, 255);
     }
 }
-
-// --- LES FONCTIONS MANQUANTES QUI CAUSAIENT LE BUG ---
-
 void Simulation::updatePhysics(int speedMultiplier) {
-    for (auto &entity : entities) entity.update(speedMultiplier);
+    // Mise à jour individuelle (mouvement)
+    for (auto &entity : entities) {
+        entity.update(speedMultiplier);
+    }
+
+    // Gestion des collisions entre entités (pour qu'elles ne se chevauchent pas)
     for (auto &entity : entities) {
         for (auto &other : entities) {
             if (&entity != &other && other.getIsAlive()) {
-                int dx = entity.getX() - other.getX(); int dy = entity.getY() - other.getY();
+                int dx = entity.getX() - other.getX();
+                int dy = entity.getY() - other.getY();
                 float distance = std::sqrt((float)dx * dx + (float)dy * dy);
                 int minDistance = entity.getRad() + other.getRad();
+
                 if (distance < minDistance) {
-                    float overlap = minDistance - distance; float separationFactor = 0.5f; float separationDistance = overlap * separationFactor;
-                    float normX = (distance > 0) ? dx / distance : 1.0f; float normY = (distance > 0) ? dy / distance : 0.0f;
+                    float overlap = minDistance - distance;
+                    float separationFactor = 0.5f;
+                    float separationDistance = overlap * separationFactor;
+                    float normX = (distance > 0) ? dx / distance : 1.0f;
+                    float normY = (distance > 0) ? dy / distance : 0.0f;
+
                     entity.setX(entity.getX() + static_cast<int>(normX * separationDistance));
                     entity.setY(entity.getY() + static_cast<int>(normY * separationDistance));
                 }

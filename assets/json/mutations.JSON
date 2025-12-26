@@ -13,11 +13,13 @@
     }
   },
   "2": {
-    "name": "Fragile",
-    "description": "Takes more damage\n-5% Health (Chronic disease).",
+    "name": "Glass Cannon",
+    "description": "Fragile but deadly. High Risk, High Reward.",
     "stats": {
-      "damageTakenMult": 1.2,
-      "maxHealthMult": 0.95
+      "damageTakenMult": 1.5,
+      "maxHealthMult": 0.6,
+      "damageMult": 2.5,
+      "speedMult": 1.1
     }
   },
   "3": {
@@ -50,18 +52,21 @@
     }
   },
   "7": {
-    "name": "Fertile",
-    "description": "More offspring, slightly lower Max Health.",
+    "name": "Broodmother (Fertile)",
+    "description": "Weak alone, but ensures genetic survival.",
     "stats": {
-      "fertilityMult": 1.5,
-      "maxHealthMult": 0.9
+      "fertilityMult": 3.0,
+      "maxHealthMult": 0.7,
+      "damageMult": 0.7
     }
   },
   "8": {
-    "name": "Aging",
-    "description": "Max Health decreases over time.",
+    "name": "Berserker (Aging)",
+    "description": "Dying fast, but stronger. Early game dominance.",
     "stats": {
-      "healthDecayRate": 0.5
+      "healthDecayRate": 0.8,
+      "damageMult": 1.5,
+      "speedMult": 1.15
     }
   },
   "9": {
