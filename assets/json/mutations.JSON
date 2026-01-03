@@ -52,7 +52,7 @@
     }
   },
   "7": {
-    "name": "Broodmother (Fertile)",
+    "name": "Fertile",
     "description": "Weak alone, but ensures genetic survival.",
     "stats": {
       "fertilityMult": 3.0,
@@ -61,8 +61,8 @@
     }
   },
   "8": {
-    "name": "Berserker (Aging)",
-    "description": "Dying fast, but stronger. Early game dominance.",
+    "name": "Aging",
+    "description": "Dying fast, but stronger.",
     "stats": {
       "healthDecayRate": 0.8,
       "damageMult": 1.5,
@@ -88,6 +88,15 @@
     "description": "+30% Armor.",
     "stats": {
       "armorMult": 1.3
+    }
+  },
+  "12": {
+    "name": "foodie",
+    "description": "Powerful but constantly hungry.\nNeeds food to restore Stamina.",
+    "stats": {
+      "speedMult": 1.4,
+      "damageMult": 1.2,
+      "staminaRegenBonus": -2.0
     }
   }
 }

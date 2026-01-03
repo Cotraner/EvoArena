@@ -46,6 +46,7 @@ void TraitManager::loadTraits(const std::string& filepath) {
             stats.damageMult = s.value("damageMult", 1.0f);
             stats.armorFlatBonus = s.value("armorFlatBonus", 0.0f);
             stats.staminaMoveCostMult = s.value("staminaMoveCostMult", 1.0f);
+            stats.staminaRegenBonus = s.value("staminaRegenBonus", 0.0f);
         }
 
         traitDatabase[id] = stats;

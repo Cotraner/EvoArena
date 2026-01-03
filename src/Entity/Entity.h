@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <map>
 #include <cmath>
+#include <iostream>
 
 class Projectile;
 
@@ -109,12 +110,26 @@ public:
 
     static SDL_Color generateRandomColor();
 
+    void restoreStamina(int amount, int speedMultiplier) {
+        stamina += amount;
+        if (stamina > maxStamina) stamina = maxStamina;
+
+        // Calcul de la durée adaptée
+        // Base de 60 frames divisée par la vitesse.
+        // On s'assure que ça dure au moins 1 frame pour qu'on voie un petit "clignotement" même en x100
+        int duration = 10 / (speedMultiplier > 0 ? speedMultiplier : 1);
+        if (duration < 1) duration = 1;
+
+        flashTimer = duration;
+    }
+
 private:
+    int flashTimer = 0;
     void calculateDerivedStats();
 
     static constexpr Uint32 REGEN_COOLDOWN_MS = 2000;
-    static constexpr Uint32 STAMINA_REGEN_DELAY_MS = 2000;
-    static constexpr int STAMINA_REGEN_RATE = 2;
+    static constexpr Uint32 STAMINA_REGEN_DELAY_MS = 3000;
+    static constexpr int STAMINA_REGEN_RATE = 1;
     static constexpr int STAMINA_FLEE_COST_PER_FRAME = 4;
     static constexpr int STAMINA_CHARGE_COST_PER_FRAME = 3;
 

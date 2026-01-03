@@ -45,6 +45,7 @@ void Simulation::initialize(int initialEntityCount) {
     genealogyArchive.clear();
     inspectionStack.clear();
     selectedLivingEntity = nullptr;
+    foods.clear(); // Important : On vide la nourriture au reset
 
     panelCurrentX = (float)WINDOW_WIDTH;
     panelTargetX = (float)WINDOW_WIDTH;
@@ -53,43 +54,59 @@ void Simulation::initialize(int initialEntityCount) {
 
     for (int i = 0; i < initialEntityCount; ++i) {
         float newGeneticCode[12];
+
+        // 1. Physique de base (Taille aléatoire)
         newGeneticCode[0] = 10.0f + (float)(std::rand() % 31);
         int randomRad = (int)newGeneticCode[0];
+
+        // Position spawn (évite les murs)
         int randomX = randomRad + (std::rand() % (WINDOW_WIDTH - 2 * randomRad));
         int randomY = randomRad + (std::rand() % (WINDOW_HEIGHT - 2 * randomRad));
+
         std::string name = "G0-E" + std::to_string(i + 1);
         SDL_Color color = Entity::generateRandomColor();
 
-        newGeneticCode[1] = (float)(std::rand() % 101); // Weapon
-        newGeneticCode[2] = (10 + (std::rand() % 91)) / 100.0f; // Kite
+        // 2. Armement & Rôle (Aléatoire pour la diversité du gameplay)
+        newGeneticCode[1] = (float)(std::rand() % 101); // Weapon Type (Puissance vs Vitesse)
+        newGeneticCode[2] = (10 + (std::rand() % 91)) / 100.0f; // Kite distance
 
+        // Définition du Rôle (Melee / Ranged / Healer)
         int roleRoll = std::rand() % 100;
         if (roleRoll < 33) {
-            newGeneticCode[10] = 0.15f; // Melee (0.0 - 0.33)
+            newGeneticCode[10] = 0.15f; // Melee
         } else if (roleRoll < 66) {
-            newGeneticCode[10] = 0.50f; // Ranged (0.33 - 0.66)
+            newGeneticCode[10] = 0.50f; // Ranged
         } else {
-            newGeneticCode[10] = 0.85f; // Healer (0.66 - 1.0)
+            newGeneticCode[10] = 0.85f; // Healer
         }
-        // Petit bruit aléatoire pour éviter des clones parfaits
+        // Variation légère pour éviter les clones
         newGeneticCode[10] += ((float)(std::rand() % 11) - 5.0f) / 100.0f;
 
 
-        // Genes BIO
-        newGeneticCode[3] = (std::rand() % 10 < 2) ? ((float)(std::rand() % 101) / 100.0f * FRAGILITY_MAX) : 0.0f;
-        newGeneticCode[4] = (std::rand() % 10 < 2) ? ((float)(std::rand() % 101) / 100.0f * EFFICIENCY_MAX) : 0.0f;
-        newGeneticCode[5] = (std::rand() % 10 < 2) ? ((float)(std::rand() % 101) / 100.0f * REGEN_MAX) : 0.0f;
-        newGeneticCode[6] = (std::rand() % 10 < 2) ? ((float)(std::rand() % 101) / 100.0f * MYOPIA_MAX) : 0.0f;
-        newGeneticCode[7] = (std::rand() % 10 < 2) ? ((float)(std::rand() % 101) / 100.0f * AIM_MAX) : 0.0f;
-        newGeneticCode[8] = (std::rand() % 20 < 1) ? ((float)(std::rand() % 101) / 100.0f * AGING_MAX_FLOAT) : 0.0f;
-        newGeneticCode[9] = (std::rand() % 20 < 1) ? (float)(1 + std::rand() % FERTILITY_MAX_INT) : 0.0f;
+        // --- 3. NETTOYAGE COMPLET DES GÈNES BIO (GÉNÉRATION 0 PURE) ---
+        // On force tous les défauts/bonus biologiques à 0.
+        // Ils n'apparaîtront que plus tard via les mutations des enfants.
+        newGeneticCode[3] = 0.0f; // Fragility
+        newGeneticCode[4] = 0.0f; // Stamina Efficiency
+        newGeneticCode[5] = 0.0f; // Health Regen
+        newGeneticCode[6] = 0.0f; // Myopia
+        newGeneticCode[7] = 0.0f; // Aiming Penalty
+        newGeneticCode[8] = 0.0f; // Aging
+        newGeneticCode[9] = 0.0f; // Fertility (Pas de bonus au départ)
 
+        // --- 4. SÉLECTION DU TRAIT PRINCIPAL (JSON) ---
+        // Équilibrage : 80% Classique, 20% Spécial
         int maxTraits = TraitManager::getCount();
-        int dominantTraitID = 0;
-        if (maxTraits > 1 && (std::rand() % 100) >= 80) {
-            dominantTraitID = 1 + (std::rand() % (maxTraits - 1));
+
+        if (maxTraits > 1 && (std::rand() % 100) < 20) {
+            // On tire un trait au hasard (ID 1 à max)
+            // Cela inclut le Gourmand (ID 12) s'il est dans le JSON
+            int dominantTraitID = 1 + (std::rand() % (maxTraits - 1));
+            newGeneticCode[11] = (float)dominantTraitID;
+        } else {
+            // La majorité de la population est "Standard" au début
+            newGeneticCode[11] = 0.0f; // Classique
         }
-        newGeneticCode[11] = (float)dominantTraitID;
 
         entities.emplace_back(name, randomX, randomY, color, newGeneticCode, currentGeneration, "NONE", "NONE");
     }
@@ -240,18 +257,28 @@ void Simulation::handleEvent(const SDL_Event &event) {
 Simulation::SimUpdateStatus Simulation::update(int speedMultiplier, bool autoRestart) {
     updateLogic(speedMultiplier);
     updatePhysics(speedMultiplier);
+
+    // --- GESTION NOURRITURE ---
+    spawnFood();
+    updateFood(speedMultiplier);
+    // --------------------------
+
     updateProjectiles();
     cleanupDead();
+
     if (entities.size() <= SURVIVOR_COUNT && !entities.empty()) {
         lastSurvivors = entities;
         for (const auto& winner : lastSurvivors) genealogyArchive.insert({winner.getName(), winner});
         if (autoRestart) { triggerReproduction(lastSurvivors); return SimUpdateStatus::RUNNING; }
         else return SimUpdateStatus::FINISHED;
     }
+
     if (!inspectionStack.empty()) panelTargetX = (float)(WINDOW_WIDTH - PANEL_WIDTH); else panelTargetX = (float)WINDOW_WIDTH;
     if(selectedLivingEntity != nullptr && !selectedLivingEntity->getIsAlive()) selectedLivingEntity = nullptr;
+
     float distance = panelTargetX - panelCurrentX;
     if (std::abs(distance) < 1.0f) panelCurrentX = panelTargetX; else panelCurrentX += distance * 0.1f;
+
     return SimUpdateStatus::RUNNING;
 }
 
@@ -553,8 +580,57 @@ void Simulation::cleanupDead() {
 }
 
 void Simulation::render(SDL_Renderer *renderer, bool showDebug) {
+    // --- DESSIN NOURRITURE ---
+    for (const auto& f : foods) {
+        // Cercle plein vert foncé + contour vert clair
+        filledCircleRGBA(renderer, f.x, f.y, f.radius, 34, 139, 34, 255);
+        circleRGBA(renderer, f.x, f.y, f.radius, 144, 238, 144, 200);
+    }
+    // -------------------------
+
     for (auto &entity : entities) entity.draw(renderer, showDebug);
     for (auto &proj : projectiles) proj.draw(renderer);
+
     if (selectedLivingEntity != nullptr) circleRGBA(renderer, selectedLivingEntity->getX(), selectedLivingEntity->getY(), selectedLivingEntity->getRad() + 4, 255, 255, 0, 200);
     if (panelCurrentX < WINDOW_WIDTH) drawStatsPanel(renderer, static_cast<int>(panelCurrentX));
+}
+
+void Simulation::spawnFood() {
+    // Si on n'a pas atteint la limite max, on a une chance de faire pousser une plante
+    if (foods.size() < MAX_FOOD_COUNT && (rand() % 100 < FOOD_SPAWN_RATE)) {
+        Food f;
+        // On évite les bords de l'écran (marge de 20px)
+        f.x = 20 + (rand() % (WINDOW_WIDTH - 40));
+        f.y = 20 + (rand() % (WINDOW_HEIGHT - 40));
+        foods.push_back(f);
+    }
+}
+
+void Simulation::updateFood(int speedMultiplier) { // Vérifie que tu as bien int speedMultiplier ici
+    auto it = foods.begin();
+    while (it != foods.end()) {
+        bool eaten = false;
+        for (auto &entity : entities) {
+            if (!entity.getIsAlive()) continue;
+
+            int dx = entity.getX() - it->x;
+            int dy = entity.getY() - it->y;
+            float dist = std::sqrt((float)(dx*dx + dy*dy));
+
+            if (dist < (entity.getRad() + it->radius)) {
+
+                // --- CORRECTION ICI ---
+                // Il fallait ajouter ", speedMultiplier"
+                entity.restoreStamina(50, speedMultiplier);
+
+                eaten = true;
+                break;
+            }
+        }
+        if (eaten) {
+            it = foods.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }

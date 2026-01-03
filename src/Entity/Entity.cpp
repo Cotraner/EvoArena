@@ -163,52 +163,55 @@ Entity::Entity(std::string name, int x, int y, SDL_Color color,
 Entity::~Entity() = default;
 
 void Entity::draw(SDL_Renderer* renderer, bool showDebug) {
-    int type = getEntityType();
-
-    // --- 1. DESSIN DU CORPS ---
-
-    if (type == 1) {
-        // === RANGED : CIBLE / VISEUR ===
-        filledCircleRGBA(renderer, x, y, rad, color.r, color.g, color.b, 255);
-        filledCircleRGBA(renderer, x, y, (int)(rad * 0.65f), 20, 20, 20, 255);
-        filledCircleRGBA(renderer, x, y, (int)(rad * 0.30f), color.r, color.g, color.b, 255);
-        circleRGBA(renderer, x, y, (int)(rad * 0.35f), 255, 255, 255, 100);
-    }
-    else if (type == 2) {
-        // === HEALER : CROIX FONCÉE SUR FOND DE COULEUR ===
-
-        // 1. Fond = Couleur de base de l'entité
-        filledCircleRGBA(renderer, x, y, rad, color.r, color.g, color.b, 255);
-
-        // 2. Bordure un peu plus sombre pour le contraste
-        Uint8 r_dark = (Uint8)(color.r * 0.7f);
-        Uint8 g_dark = (Uint8)(color.g * 0.7f);
-        Uint8 b_dark = (Uint8)(color.b * 0.7f);
-        circleRGBA(renderer, x, y, rad, r_dark, g_dark, b_dark, 255);
-
-        // 3. La Croix = Très foncée (Gris/Noir) pour bien ressortir sur la couleur
-        int w = (int)(rad * 0.5f); // demi-longueur
-        int t = (int)(rad * 0.2f); // demi-épaisseur
-
-        // Croix noire (ou gris très sombre 40,40,40)
-        boxRGBA(renderer, x - w, y - t, x + w, y + t, 40, 40, 40, 255); // Horizontale
-        boxRGBA(renderer, x - t, y - w, x + t, y + w, 40, 40, 40, 255); // Verticale
-
-        // Petit contour blanc autour de la croix pour le style (optionnel)
-        rectangleRGBA(renderer, x - w, y - t, x + w, y + t, 255, 255, 255, 100);
-        rectangleRGBA(renderer, x - t, y - w, x + t, y + w, 255, 255, 255, 100);
-
+    // --- 1. EFFET FLASH (Quand on mange) ---
+    // Si le timer est actif, on dessine l'entité en blanc pur
+    if (flashTimer > 0) {
+        filledCircleRGBA(renderer, x, y, rad, 255, 255, 255, 255);
+        flashTimer--; // On décrémente le timer pour que l'effet s'arrête
     }
     else {
-        // === MELEE : NOYAU / BLINDAGE ===
-        Uint8 r_dark = (Uint8)(color.r * 0.6f);
-        Uint8 g_dark = (Uint8)(color.g * 0.6f);
-        Uint8 b_dark = (Uint8)(color.b * 0.6f);
-        filledCircleRGBA(renderer, x, y, rad, r_dark, g_dark, b_dark, 255);
-        filledCircleRGBA(renderer, x, y, (int)(rad * 0.75f), color.r, color.g, color.b, 255);
+        // --- 2. DESSIN NORMAL DU CORPS ---
+        int type = getEntityType();
+
+        if (type == 1) {
+            // === RANGED : CIBLE / VISEUR ===
+            filledCircleRGBA(renderer, x, y, rad, color.r, color.g, color.b, 255);
+            filledCircleRGBA(renderer, x, y, (int)(rad * 0.65f), 20, 20, 20, 255);
+            filledCircleRGBA(renderer, x, y, (int)(rad * 0.30f), color.r, color.g, color.b, 255);
+            circleRGBA(renderer, x, y, (int)(rad * 0.35f), 255, 255, 255, 100);
+        }
+        else if (type == 2) {
+            // === HEALER : CROIX FONCÉE SUR FOND DE COULEUR ===
+            // Fond
+            filledCircleRGBA(renderer, x, y, rad, color.r, color.g, color.b, 255);
+
+            // Bordure sombre
+            Uint8 r_dark = (Uint8)(color.r * 0.7f);
+            Uint8 g_dark = (Uint8)(color.g * 0.7f);
+            Uint8 b_dark = (Uint8)(color.b * 0.7f);
+            circleRGBA(renderer, x, y, rad, r_dark, g_dark, b_dark, 255);
+
+            // La Croix
+            int w = (int)(rad * 0.5f);
+            int t = (int)(rad * 0.2f);
+            boxRGBA(renderer, x - w, y - t, x + w, y + t, 40, 40, 40, 255); // Horizontale
+            boxRGBA(renderer, x - t, y - w, x + t, y + w, 40, 40, 40, 255); // Verticale
+
+            // Contour blanc croix
+            rectangleRGBA(renderer, x - w, y - t, x + w, y + t, 255, 255, 255, 100);
+            rectangleRGBA(renderer, x - t, y - w, x + t, y + w, 255, 255, 255, 100);
+        }
+        else {
+            // === MELEE : NOYAU / BLINDAGE ===
+            Uint8 r_dark = (Uint8)(color.r * 0.6f);
+            Uint8 g_dark = (Uint8)(color.g * 0.6f);
+            Uint8 b_dark = (Uint8)(color.b * 0.6f);
+            filledCircleRGBA(renderer, x, y, rad, r_dark, g_dark, b_dark, 255);
+            filledCircleRGBA(renderer, x, y, (int)(rad * 0.75f), color.r, color.g, color.b, 255);
+        }
     }
 
-    // --- 2. DEBUG VISUEL ---
+    // --- 3. DEBUG VISUEL (Indicateurs) ---
     if (showDebug) {
         circleRGBA(renderer, x, y, sightRadius, 255, 255, 255, 50);
         if (isCharging) {
@@ -216,48 +219,63 @@ void Entity::draw(SDL_Renderer* renderer, bool showDebug) {
             circleRGBA(renderer, x, y, rad + 4, 255, 50, 50, 255);
             circleRGBA(renderer, x, y, rad + 5, 255, 50, 50, 150);
         }
-        stringRGBA(renderer, x - 0.1*rad  , y - 0.1*rad, (std::to_string(health)).c_str(), 255, 255, 255, 255);
+        stringRGBA(renderer, x - (int)(0.1*rad), y - (int)(0.1*rad), std::to_string(health).c_str(), 255, 255, 255, 255);
     }
 
-    // --- 3. BARRES DE VIE ---
+    // --- 4. BARRES DE VIE & STAMINA ---
     int barWidth = 6;
     int barHeight = 2 * rad;
     int offset = rad + 6;
+
+    // Calcul des pourcentages
     float healthPercent = std::clamp((float)health / (float)maxHealth, 0.0f, 1.0f);
     float staminaPercent = std::clamp((float)stamina / (float)maxStamina, 0.0f, 1.0f);
 
+    // Barre de Vie (Gauche - Rouge)
     SDL_Rect healthBarBg = {x - offset - barWidth, y - barHeight / 2, barWidth, barHeight};
-    SDL_SetRenderDrawColor(renderer, 40, 40, 40, 255); SDL_RenderFillRect(renderer, &healthBarBg);
+    SDL_SetRenderDrawColor(renderer, 40, 40, 40, 255);
+    SDL_RenderFillRect(renderer, &healthBarBg);
+
     int healthFillHeight = static_cast<int>(barHeight * healthPercent + 0.5f);
     if (healthFillHeight > 0) {
         SDL_Rect healthBar = {x - offset - barWidth, y + barHeight / 2 - healthFillHeight, barWidth, healthFillHeight};
-        SDL_SetRenderDrawColor(renderer, 220, 20, 20, 255); SDL_RenderFillRect(renderer, &healthBar);
+        SDL_SetRenderDrawColor(renderer, 220, 20, 20, 255);
+        SDL_RenderFillRect(renderer, &healthBar);
     }
 
+    // Barre d'Endurance (Droite - Bleue)
     SDL_Rect staminaBarBg = {x + offset, y - barHeight / 2, barWidth, barHeight};
-    SDL_SetRenderDrawColor(renderer, 40, 40, 40, 255); SDL_RenderFillRect(renderer, &staminaBarBg);
+    SDL_SetRenderDrawColor(renderer, 40, 40, 40, 255);
+    SDL_RenderFillRect(renderer, &staminaBarBg);
+
     int staminaFillHeight = static_cast<int>(barHeight * staminaPercent + 0.5f);
     if (staminaFillHeight > 0) {
         SDL_Rect staminaBar = {x + offset, y + barHeight / 2 - staminaFillHeight, barWidth, staminaFillHeight};
-        SDL_SetRenderDrawColor(renderer, 20, 100, 255, 255); SDL_RenderFillRect(renderer, &staminaBar);
+        SDL_SetRenderDrawColor(renderer, 20, 100, 255, 255);
+        SDL_RenderFillRect(renderer, &staminaBar);
     }
 }
 
 void Entity::update(int speedMultiplier) {
     if (!isAlive) return;
+
     Uint32 currentTime = SDL_GetTicks();
+
+    // Calcul des délais modifiés par la vitesse de simulation
     Uint32 effectiveRegenCooldown = (speedMultiplier > 0) ? (REGEN_COOLDOWN_MS / speedMultiplier) : REGEN_COOLDOWN_MS;
     Uint32 effectiveStaminaDelay = (speedMultiplier > 0) ? (STAMINA_REGEN_DELAY_MS / speedMultiplier) : STAMINA_REGEN_DELAY_MS;
 
     float agingRate = geneticCode[8];
     float baseHealthRegen = geneticCode[5];
 
+    // --- 1. VIEILLISSEMENT (Aging) ---
     if (agingRate > 0.0f) {
         this->maxHealth -= (int)(this->maxHealth * agingRate * 0.001f * speedMultiplier);
         if (this->maxHealth < 1) this->maxHealth = 1;
         if (this->health > this->maxHealth) this->health = this->maxHealth;
     }
 
+    // --- 2. RÉGÉNÉRATION SANTÉ (Regenerator) ---
     if (baseHealthRegen > 0.0f && health < maxHealth) {
         if (currentTime > lastRegenTick + effectiveRegenCooldown) {
             health += (int)baseHealthRegen;
@@ -266,54 +284,115 @@ void Entity::update(int speedMultiplier) {
         }
     }
 
+    // --- 3. CONSOMMATION STAMINA (Actions Actives) ---
     bool staminaConsumed = false;
+
+    // Fuite
     if (isFleeing) {
         int traitID = (int)std::round(geneticCode[11]);
         float moveCostMult = TraitManager::get(traitID).staminaMoveCostMult;
         int cost = (int)(STAMINA_FLEE_COST_PER_FRAME * moveCostMult);
         if (cost < 1) cost = 1;
+
         if (stamina > 0) {
-            stamina -= cost; lastStaminaUseTick = currentTime; staminaConsumed = true;
+            stamina -= cost;
+            lastStaminaUseTick = currentTime;
+            staminaConsumed = true;
             if (stamina < 0) stamina = 0;
-        } else isFleeing = false;
-    } else if (isCharging) {
+        } else {
+            isFleeing = false; // Plus de jus, on arrête de courir
+        }
+    }
+        // Charge (Attaque Melee)
+    else if (isCharging) {
         if (stamina > 0) {
-            stamina -= STAMINA_CHARGE_COST_PER_FRAME; lastStaminaUseTick = currentTime; staminaConsumed = true;
+            stamina -= STAMINA_CHARGE_COST_PER_FRAME;
+            lastStaminaUseTick = currentTime;
+            staminaConsumed = true;
             if (stamina < 0) stamina = 0;
-        } else isCharging = false;
+        } else {
+            isCharging = false;
+        }
     }
 
-    if (!staminaConsumed && stamina < maxStamina && currentTime > lastStaminaUseTick + effectiveStaminaDelay) {
-        stamina += STAMINA_REGEN_RATE;
+    // --- 4. RÉGÉNÉRATION / DÉGÉNÉRATION STAMINA (NOUVEAU : Logique Gourmand) ---
+
+    // On récupère le trait pour voir s'il y a un bonus ou malus (ex: -2.0 pour Gourmand)
+    int traitID = (int)std::round(geneticCode[11]);
+    float regenBonus = TraitManager::get(traitID).staminaRegenBonus;
+
+    // Calcul de la régénération nette par frame (Base + Bonus)
+    // Exemple Gourmand : 1 (Base) + (-2) = -1 (Perte constante)
+    int netRegen = STAMINA_REGEN_RATE + (int)regenBonus;
+
+    // CAS A : Dégénérescence (Gourmand) -> On perd de l'énergie tout le temps
+    if (netRegen < 0) {
+        // On applique la perte seulement toutes les X frames pour ne pas vider la barre en 1 seconde
+        // Le modulo permet de ralentir l'effet selon la vitesse du jeu
+        int tickRate = 2 * (speedMultiplier > 0 ? speedMultiplier : 1);
+        if (currentTime % tickRate == 0) {
+            stamina += netRegen; // netRegen est négatif, donc ça soustrait
+            if (stamina < 0) stamina = 0;
+        }
+    }
+        // CAS B : Régénération Normale -> On gagne de l'énergie si on se repose
+    else if (!staminaConsumed && stamina < maxStamina && currentTime > lastStaminaUseTick + effectiveStaminaDelay) {
+        stamina += netRegen;
         if (stamina > maxStamina) stamina = maxStamina;
     }
-    if (health <= 0) { die(); return; }
 
+    // --- 5. MORT ---
+    if (health <= 0) {
+        die();
+        return;
+    }
+
+    // --- 6. PHYSIQUE DE DÉPLACEMENT ---
     float dynamicSpeed = (float)speed;
-    if (isCharging) dynamicSpeed *= 1.8f; else if (isFleeing) dynamicSpeed *= 0.8f;
+    if (isCharging) dynamicSpeed *= 1.8f;
+    else if (isFleeing) dynamicSpeed *= 0.8f;
+
     int currentSpeed = (int)(dynamicSpeed * (float)speedMultiplier);
     if (currentSpeed < 1) currentSpeed = 1;
 
+    // Si pas de direction, on en choisit une (errance)
     if (direction[0] == 0 && direction[1] == 0) chooseDirection();
-    float distX = direction[0] - x; float distY = direction[1] - y;
+
+    float distX = direction[0] - x;
+    float distY = direction[1] - y;
     float distance = std::sqrt(distX * distX + distY * distY);
 
     if (distance < currentSpeed && distance > 0.0f) {
-        x += (int)distX; y += (int)distY; direction[0] = 0; direction[1] = 0; clearTarget();
+        // Arrivé à destination
+        x += (int)distX;
+        y += (int)distY;
+        direction[0] = 0; direction[1] = 0;
+        clearTarget();
     } else if (distance > 0.0f) {
-        float normX = distX / distance; float normY = distY / distance;
-        x += static_cast<int>(normX * currentSpeed); y += static_cast<int>(normY * currentSpeed);
-        lastVelX = normX; lastVelY = normY;
+        // En mouvement
+        float normX = distX / distance;
+        float normY = distY / distance;
+        x += static_cast<int>(normX * currentSpeed);
+        y += static_cast<int>(normY * currentSpeed);
+        lastVelX = normX;
+        lastVelY = normY;
     }
 
+    // --- 7. COLLISIONS BORDS ÉCRAN ---
     bool collided = false;
-    if (x < rad) { x = rad; collided = true; } else if (x > WINDOW_WIDTH - rad) { x = WINDOW_WIDTH - rad; collided = true; }
-    if (y < rad) { y = rad; collided = true; } else if (y > WINDOW_HEIGHT - rad) { y = WINDOW_HEIGHT - rad; collided = true; }
+    if (x < rad) { x = rad; collided = true; }
+    else if (x > WINDOW_WIDTH - rad) { x = WINDOW_WIDTH - rad; collided = true; }
+
+    if (y < rad) { y = rad; collided = true; }
+    else if (y > WINDOW_HEIGHT - rad) { y = WINDOW_HEIGHT - rad; collided = true; }
+
     if (collided) {
-        direction[0] = 0; direction[1] = 0; clearTarget(); lastVelX = -lastVelX; lastVelY = -lastVelY; isCharging = false; isFleeing = false;
+        direction[0] = 0; direction[1] = 0;
+        clearTarget();
+        lastVelX = -lastVelX; lastVelY = -lastVelY;
+        isCharging = false; isFleeing = false;
     }
 }
-
 void Entity::chooseDirection(int target[2]) {
     if(target != nullptr){
         direction[0] = target[0]; direction[1] = target[1]; targetX = target[0]; targetY = target[1];
