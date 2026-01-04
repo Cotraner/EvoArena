@@ -189,6 +189,7 @@ int main() {
                             else if (simulationSpeed == 5) simulationSpeed = 10;
                             else if (simulationSpeed == 10) simulationSpeed = 50;
                             else if (simulationSpeed == 50) simulationSpeed = 100;
+                            else if (simulationSpeed == 100) simulationSpeed = 250;
                             else simulationSpeed = 1;
                             clickHandled = true;
                         } else if (SDL_PointInRect(&mousePoint, &restartButton.rect)) {

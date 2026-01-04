@@ -139,6 +139,11 @@ void Entity::calculateDerivedStats() {
     // Efficacité endurance (Gène)
     this->staminaAttackCost = (int)(this->staminaAttackCost * (1.0f - staminaEfficiency));
     if (this->staminaAttackCost < 1) this->staminaAttackCost = 1;
+
+    if (this->getEntityType() == 2) { // Si c'est un Healer
+        this->maxHealth = (int)(this->maxHealth * 0.60f); // -40% PV
+        this->damage = (int)(this->damage * 0.50f);       // -50% Dégâts/Soin
+    }
 }
 
 Entity::Entity(std::string name, int x, int y, SDL_Color color,
@@ -146,7 +151,7 @@ Entity::Entity(std::string name, int x, int y, SDL_Color color,
                std::string p1_name, std::string p2_name) :
         x(x), y(y), color(color), name(std::move(name)),
         generation(generation), parent1_name(std::move(p1_name)), parent2_name(std::move(p2_name)){
-    for(int i = 0; i < 12; ++i) this->geneticCode[i] = geneticCode[i];
+    for(int i = 0; i < 14; ++i) this->geneticCode[i] = geneticCode[i];
     this->rad = (int)geneticCode[0];
     direction[0] = 0; direction[1] = 0;
     std::random_device rd; std::mt19937 gen(rd());

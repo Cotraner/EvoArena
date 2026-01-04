@@ -16,6 +16,13 @@ class Projectile;
 
 class Entity {
 public:
+    enum State {
+        WANDER, // Errance
+        COMBAT, // Attaque (ou Soin pour Healer)
+        FLEE,   // Fuite (PV bas)
+        FORAGE  // Cherche nourriture (Stamina basse)
+    };
+
     Entity(std::string name, int x, int y, SDL_Color color,
            const float geneticCode[12], int generation,
            std::string parent1_name, std::string parent2_name);
@@ -62,6 +69,9 @@ public:
     void setIsFleeing(bool fleeing) { isFleeing = fleeing; }
     void setIsCharging(bool charging) { isCharging = charging; }
 
+    void setCurrentState(State s) { currentState = s; }
+
+
     // --- Getters de Base ---
     [[nodiscard]] std::string getName() const { return name; }
     SDL_Color getColor() const { return color; }
@@ -69,6 +79,16 @@ public:
     int getY() const { return y; }
     int getRad() const { return rad; }
     int getSightRadius() const { return sightRadius; }
+    State getCurrentState() const { return currentState; }
+    std::string getCurrentStateString() const {
+        switch (currentState) {
+            case WANDER: return "WANDER";
+            case COMBAT: return "COMBAT";
+            case FLEE: return "FLEE";
+            case FORAGE: return "FORAGE";
+            default: return "UNKNOWN";
+        }
+    }
 
     // --- Getters du Code Génétique ---
     const float* getGeneticCode() const { return geneticCode; }
@@ -107,6 +127,8 @@ public:
     float getAimingPenalty() const { return geneticCode[7]; }
     int getFertilityFactor() const { return (int)geneticCode[9]; }
     float getAgingRate() const { return geneticCode[8]; }
+    float getBravery() const { return geneticCode[12]; } // 0.0 à 1.0
+    float getGreed() const { return geneticCode[13]; }   // 0.0 à 1.0
 
     static SDL_Color generateRandomColor();
 
@@ -139,7 +161,10 @@ private:
     bool isAlive = true;
     SDL_Color color;
     int rad;
-    float geneticCode[12];
+    float geneticCode[14];
+
+    // --- ÉTAT ---
+    State currentState = WANDER;
 
     // --- STATS ---
     int health;

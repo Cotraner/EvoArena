@@ -45,7 +45,7 @@ void Simulation::initialize(int initialEntityCount) {
     genealogyArchive.clear();
     inspectionStack.clear();
     selectedLivingEntity = nullptr;
-    foods.clear(); // Important : On vide la nourriture au reset
+    foods.clear();
 
     panelCurrentX = (float)WINDOW_WIDTH;
     panelTargetX = (float)WINDOW_WIDTH;
@@ -53,61 +53,52 @@ void Simulation::initialize(int initialEntityCount) {
     std::srand(std::time(0));
 
     for (int i = 0; i < initialEntityCount; ++i) {
-        float newGeneticCode[12];
+        float newGeneticCode[14]; // Tableau de 14
 
-        // 1. Physique de base (Taille aléatoire)
+        // --- 1. Physique & Position ---
         newGeneticCode[0] = 10.0f + (float)(std::rand() % 31);
         int randomRad = (int)newGeneticCode[0];
-
-        // Position spawn (évite les murs)
         int randomX = randomRad + (std::rand() % (WINDOW_WIDTH - 2 * randomRad));
         int randomY = randomRad + (std::rand() % (WINDOW_HEIGHT - 2 * randomRad));
 
         std::string name = "G0-E" + std::to_string(i + 1);
         SDL_Color color = Entity::generateRandomColor();
 
-        // 2. Armement & Rôle (Aléatoire pour la diversité du gameplay)
-        newGeneticCode[1] = (float)(std::rand() % 101); // Weapon Type (Puissance vs Vitesse)
-        newGeneticCode[2] = (10 + (std::rand() % 91)) / 100.0f; // Kite distance
+        // --- 2. Armement & Rôle ---
+        newGeneticCode[1] = (float)(std::rand() % 101);
+        newGeneticCode[2] = (10 + (std::rand() % 91)) / 100.0f;
 
-        // Définition du Rôle (Melee / Ranged / Healer)
+        // Rôle
         int roleRoll = std::rand() % 100;
-        if (roleRoll < 33) {
-            newGeneticCode[10] = 0.15f; // Melee
-        } else if (roleRoll < 66) {
-            newGeneticCode[10] = 0.50f; // Ranged
-        } else {
-            newGeneticCode[10] = 0.85f; // Healer
-        }
-        // Variation légère pour éviter les clones
-        newGeneticCode[10] += ((float)(std::rand() % 11) - 5.0f) / 100.0f;
+        if (roleRoll < 33) newGeneticCode[10] = 0.15f;      // Melee
+        else if (roleRoll < 66) newGeneticCode[10] = 0.50f; // Ranged
+        else newGeneticCode[10] = 0.85f;                    // Healer
 
+        newGeneticCode[10] += ((float)(std::rand() % 11) - 5.0f) / 100.0f; // Variation
 
-        // --- 3. NETTOYAGE COMPLET DES GÈNES BIO (GÉNÉRATION 0 PURE) ---
-        // On force tous les défauts/bonus biologiques à 0.
-        // Ils n'apparaîtront que plus tard via les mutations des enfants.
-        newGeneticCode[3] = 0.0f; // Fragility
-        newGeneticCode[4] = 0.0f; // Stamina Efficiency
-        newGeneticCode[5] = 0.0f; // Health Regen
-        newGeneticCode[6] = 0.0f; // Myopia
-        newGeneticCode[7] = 0.0f; // Aiming Penalty
-        newGeneticCode[8] = 0.0f; // Aging
-        newGeneticCode[9] = 0.0f; // Fertility (Pas de bonus au départ)
+        // --- 3. Nettoyage Gènes Bio (Gen 0 Pure) ---
+        newGeneticCode[3] = 0.0f;
+        newGeneticCode[4] = 0.0f;
+        newGeneticCode[5] = 0.0f;
+        newGeneticCode[6] = 0.0f;
+        newGeneticCode[7] = 0.0f;
+        newGeneticCode[8] = 0.0f;
+        newGeneticCode[9] = 0.0f;
 
-        // --- 4. SÉLECTION DU TRAIT PRINCIPAL (JSON) ---
-        // Équilibrage : 80% Classique, 20% Spécial
+        // --- 4. Choix du Trait (Index 11) ---
         int maxTraits = TraitManager::getCount();
-
         if (maxTraits > 1 && (std::rand() % 100) < 20) {
-            // On tire un trait au hasard (ID 1 à max)
-            // Cela inclut le Gourmand (ID 12) s'il est dans le JSON
             int dominantTraitID = 1 + (std::rand() % (maxTraits - 1));
             newGeneticCode[11] = (float)dominantTraitID;
         } else {
-            // La majorité de la population est "Standard" au début
             newGeneticCode[11] = 0.0f; // Classique
         }
 
+        // --- 5. Gènes Comportementaux (Index 12 & 13) ---
+        newGeneticCode[12] = (float)(std::rand() % 101) / 100.0f; // Bravoure
+        newGeneticCode[13] = (float)(std::rand() % 101) / 100.0f; // Gourmandise
+
+        // --- CRÉATION DE L'ENTITÉ (Une seule fois à la fin !) ---
         entities.emplace_back(name, randomX, randomY, color, newGeneticCode, currentGeneration, "NONE", "NONE");
     }
 }
@@ -124,99 +115,107 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
 
     int newGen = parents[0].getGeneration() + 1;
     this->currentGeneration = newGen;
+
+    // Indices des gènes biologiques
     const std::vector<int> bioGeneIndices = {3, 4, 5, 6, 7, 8, 9};
 
-    // --- CRÉATION DE LA LOTERIE (La partie clé pour l'équilibrage) ---
+    // --- CRÉATION DE LA LOTERIE (Sélection pondérée) ---
     std::vector<int> parentLottery;
-    parentLottery.reserve(numParents * 10); // Pré-allocation pour la perf
+    parentLottery.reserve(numParents * 10);
 
     for (int i = 0; i < numParents; ++i) {
         // Ticket de base pour avoir survécu
         int tickets = 1;
-
-        // Bonus via le Gène de Fertilité (valeur 0, 1 ou 2)
-        // Un gène fertilité de 2 donne +6 tickets !
+        // Bonus Fertilité
         tickets += parents[i].getFertilityFactor() * 3;
+        // Bonus Trait "Fertile"
+        if (parents[i].getCurrentTraitID() == 7) tickets += 15;
 
-        // Bonus via le Trait "Fertile" (ID 7 dans ton JSON)
-        // Cela rend le trait Fertile extrêmement puissant pour la survie de l'espèce
-        if (parents[i].getCurrentTraitID() == 7) {
-            tickets += 15;
-        }
-
-        // On ajoute les tickets dans l'urne
-        for (int t = 0; t < tickets; ++t) {
-            parentLottery.push_back(i);
-        }
+        for (int t = 0; t < tickets; ++t) parentLottery.push_back(i);
     }
 
     // --- GÉNÉRATION DES ENFANTS ---
     for (int i = 0; i < maxEntities; ++i) {
-        // Sélection des parents via la loterie
+        // 1. Sélection des parents
         int p1_index = parentLottery[std::rand() % parentLottery.size()];
         int p2_index = parentLottery[std::rand() % parentLottery.size()];
 
         const Entity& parent1 = parents[p1_index];
         const Entity* parent2_ptr = &parents[p2_index];
 
-        // On essaie d'éviter l'auto-fécondation si possible (sauf s'il ne reste qu'un survivant dominant)
+        // Essayer de trouver un partenaire différent
         int attempts = 0;
-        while (parent1.getName() == parent2_ptr->getName() && attempts < 10) {
+        while (parent1.getName() == parent2_ptr->getName() && attempts < 15) {
             p2_index = parentLottery[std::rand() % parentLottery.size()];
             parent2_ptr = &parents[p2_index];
             attempts++;
         }
         const Entity& parent2 = *parent2_ptr;
 
-        // --- Crossover & Mutation (Code existant conservé et optimisé) ---
-        float childGeneticCode[12];
-        int structuralGenes[] = {0, 1, 2, 10};
+        // --- 2. MÉLANGE GÉNÉTIQUE (MOYENNE) ---
+        float childGeneticCode[14];
 
-        // 1. Gènes Structurels
-        for (int idx : structuralGenes) {
-            childGeneticCode[idx] = (std::rand() % 2 == 0) ? parent1.getGeneticCode()[idx] : parent2.getGeneticCode()[idx];
+        // On parcourt TOUS les gènes (0 à 13)
+        for (int idx = 0; idx < 14; ++idx) {
+            // A. MOYENNE : L'enfant est la moyenne des deux parents
+            float geneP1 = parent1.getGeneticCode()[idx];
+            float geneP2 = parent2.getGeneticCode()[idx];
+            childGeneticCode[idx] = (geneP1 + geneP2) / 2.0f;
 
+            // B. MUTATION : Ajout d'un chaos aléatoire
             if ((std::rand() % 100) < MUTATION_CHANCE_PERCENT) {
-                if (idx == 0) { // Rayon (Taille)
-                    childGeneticCode[idx] += (float)((std::rand() % (2 * RAD_MUTATION_AMOUNT + 1)) - RAD_MUTATION_AMOUNT);
-                    childGeneticCode[idx] = std::max(10.0f, std::min(40.0f, childGeneticCode[idx]));
-                } else if (idx == 10) { // Rôle (Melee/Ranged/Healer)
-                    float change = (float)((std::rand() % 21) - 10) / 100.0f;
-                    childGeneticCode[idx] = std::clamp(childGeneticCode[idx] + change, 0.0f, 1.0f);
-                } else {
-                    childGeneticCode[idx] += (float)((std::rand() % (2 * GENE_MUTATION_AMOUNT + 1)) - GENE_MUTATION_AMOUNT) / 100.0f;
+                // Pour le Rôle (10), on mute plus fort pour permettre de changer de classe
+                if (idx == 10) {
+                    float change = (float)((std::rand() % 41) - 20) / 100.0f; // +/- 0.20
+                    childGeneticCode[idx] += change;
+                }
+                    // Pour le rayon (0), on mute significativement
+                else if (idx == 0) {
+                    childGeneticCode[idx] += (float)((std::rand() % 7) - 3);
+                }
+                    // Pour les autres, petite variation
+                else {
+                    float mutation = (float)((std::rand() % 21) - 10) / 100.0f; // +/- 0.10
+                    childGeneticCode[idx] += mutation;
                 }
             }
+
+            // C. LIMITES (Clamp)
+            if (idx == 0) childGeneticCode[idx] = std::max(10.0f, std::min(50.0f, childGeneticCode[idx])); // Taille min/max
+            else if (idx == 10) childGeneticCode[idx] = std::clamp(childGeneticCode[idx], 0.0f, 1.0f); // Rôle 0-1
+            else if (idx != 11 && childGeneticCode[idx] < 0) childGeneticCode[idx] = 0.0f; // Pas de valeurs négatives (sauf Trait ID)
         }
 
-        // 2. Gènes Biologiques
-        for (int idx : bioGeneIndices) {
-            childGeneticCode[idx] = (std::rand() % 2 == 0) ? parent1.getGeneticCode()[idx] : parent2.getGeneticCode()[idx];
-            if ((std::rand() % 100) < MUTATION_CHANCE_PERCENT) {
-                float mutation = (float)((std::rand() % (2 * GENE_MUTATION_AMOUNT + 1)) - GENE_MUTATION_AMOUNT) / 100.0f;
-                childGeneticCode[idx] += mutation;
-                if(childGeneticCode[idx] < 0) childGeneticCode[idx] = 0;
-            }
-        }
-
-        // 3. Héritage du Trait (ID 11)
+        // --- 3. HÉRITAGE DU TRAIT (ID 11) ---
+        // Les traits ne se "mélangent" pas (ce sont des ID entiers), on garde la logique dominante
         int chosenID = 0;
         int roll = std::rand() % 100;
         if (roll < 45) chosenID = parent1.getCurrentTraitID();
         else if (roll < 90) chosenID = parent2.getCurrentTraitID();
         else {
             int maxTraits = TraitManager::getCount();
-            if (maxTraits > 1) chosenID = 1 + (std::rand() % (maxTraits - 1)); // Mutation de trait aléatoire
+            if (maxTraits > 1) chosenID = 1 + (std::rand() % (maxTraits - 1));
         }
         childGeneticCode[11] = (float)chosenID;
 
-        // Création de l'entité
+        // --- 4. MÉLANGE DES COULEURS (MOYENNE RGB) ---
+        SDL_Color c1 = parent1.getColor();
+        SDL_Color c2 = parent2.getColor();
+
+        SDL_Color childColor;
+        // La moyenne des composantes Rouge, Vert, Bleu
+        childColor.r = (Uint8)std::clamp(((int)c1.r + (int)c2.r) / 2 + (std::rand()%21 - 10), 0, 255);
+        childColor.g = (Uint8)std::clamp(((int)c1.g + (int)c2.g) / 2 + (std::rand()%21 - 10), 0, 255);
+        childColor.b = (Uint8)std::clamp(((int)c1.b + (int)c2.b) / 2 + (std::rand()%21 - 10), 0, 255);
+        childColor.a = 255;
+
+        // --- Finalisation ---
         std::string newName = "G" + std::to_string(newGen) + "-E" + std::to_string(i + 1);
         int randomRad = (int)childGeneticCode[0];
         int randomX = randomRad + (std::rand() % (WINDOW_WIDTH - 2 * randomRad));
         int randomY = randomRad + (std::rand() % (WINDOW_HEIGHT - 2 * randomRad));
 
-        newGeneration.emplace_back(newName, randomX, randomY, parent1.getColor(), childGeneticCode, newGen, parent1.getName(), parent2.getName());
+        newGeneration.emplace_back(newName, randomX, randomY, childColor, childGeneticCode, newGen, parent1.getName(), parent2.getName());
     }
 
     entities = std::move(newGeneration);
@@ -286,122 +285,261 @@ void Simulation::updateLogic(int speedMultiplier) {
     for (auto &entity : entities) {
         if (!entity.getIsAlive()) continue;
 
-        int myType = entity.getEntityType();
+        // --- 1. PERCEPTION ---
+        Entity* closestTarget = nullptr;
+        float closestDist = 100000.0f;
+        bool targetIsFriendly = false; // Pour savoir si on doit soigner ou taper
 
-        // --- HEALER (2) ---
-        if (myType == 2) {
-            Entity* targetAlly = nullptr;
-            Entity* closestThreat = nullptr;
-            float closestAllyDist = (float)(WINDOW_WIDTH + WINDOW_HEIGHT);
-            float closestThreatDist = (float)(WINDOW_WIDTH + WINDOW_HEIGHT);
+        for (auto &other : entities) {
+            if (&entity != &other && other.getIsAlive()) {
+                float dist = std::hypot(entity.getX() - other.getX(), entity.getY() - other.getY());
 
-            for (auto &other : entities) {
-                if (&entity != &other && other.getIsAlive()) {
-                    float dist = std::hypot(entity.getX() - other.getX(), entity.getY() - other.getY());
-                    if (entity.isAlliedWith(other)) {
-                        if (other.getHealth() < other.getMaxHealth() && dist < closestAllyDist) {
-                            closestAllyDist = dist; targetAlly = &other;
+                bool isHealer = (entity.getEntityType() == 2);
+                bool isAlly = entity.isAlliedWith(other); // Vrai si couleur proche
+
+                bool isValidTarget = false;
+                bool isFriendlyInteraction = false;
+
+                if (isHealer) {
+                    // Priorité Absolue : Allié blessé... MAIS PAS UN AUTRE HEALER !
+                    // On ajoute : && other.getEntityType() != 2
+                    if (isAlly && other.getHealth() < other.getMaxHealth() && other.getEntityType() != 2) {
+                        isValidTarget = true;
+                        isFriendlyInteraction = true;
+                    }
+                        // Sinon, on attaque (Self-defense ou Battle Medic)
+                    else if (!isAlly) {
+                        isValidTarget = true;
+                        isFriendlyInteraction = false;
+                    }
+                }
+                else {
+                    // Pour les Melee/Ranged : On attaque tout le monde
+                    isValidTarget = true;
+                    isFriendlyInteraction = false;
+                }
+
+                if (isValidTarget) {
+                    // On privilégie toujours le soin sur l'attaque si les distances sont proches
+                    // Si on a déjà trouvé un patient (targetIsFriendly == true), on ne change pour un ennemi que s'il est VRAIMENT plus près
+                    if (targetIsFriendly && !isFriendlyInteraction) {
+                        // On garde le patient actuel sauf si l'ennemi est collé à nous (auto-défense)
+                        if (dist < 20.0f) { // Danger immédiat
+                            closestDist = dist;
+                            closestTarget = &other;
+                            targetIsFriendly = false;
                         }
-                    } else {
-                        if (dist < closestThreatDist) { closestThreatDist = dist; closestThreat = &other; }
+                    }
+                    else if (dist < closestDist) {
+                        closestDist = dist;
+                        closestTarget = &other;
+                        targetIsFriendly = isFriendlyInteraction;
                     }
                 }
+            }
+        }
+
+        // Trouver la nourriture la plus proche
+        int foodIndex = -1;
+        float closestFoodDist = 100000.0f;
+        for (size_t i = 0; i < foods.size(); ++i) {
+            float d = std::hypot(entity.getX() - foods[i].x, entity.getY() - foods[i].y);
+            if (d < closestFoodDist) {
+                closestFoodDist = d;
+                foodIndex = (int)i;
+            }
+        }
+
+        // --- 2. PRISE DE DÉCISION (Changement d'état basé sur les gènes) ---
+        float healthPct = (float)entity.getHealth() / (float)entity.getMaxHealth();
+        float staminaPct = (float)entity.getStamina() / (float)entity.getMaxStamina();
+
+        // Règle 1 : Fuite (Bravoure)
+        // On ne fuit que si l'ennemi est VRAIMENT proche (< 150 pixels) ET qu'on est blessé.
+        // Si l'ennemi est loin, fuir ne sert à rien, autant chercher à manger ou attendre.
+        bool dangerClose = (closestTarget && closestDist < 150.0f);
+
+        if (dangerClose && healthPct < entity.getBravery() && !entity.isAlliedWith(*closestTarget)) {
+            // Si je suis coincé près d'un mur (marge de 50px), je ne peux plus fuir -> JE ME BATS !
+            bool stuckAgainstWall = (entity.getX() < 50 || entity.getX() > WINDOW_WIDTH - 50 ||
+                                     entity.getY() < 50 || entity.getY() > WINDOW_HEIGHT - 50);
+
+            if (stuckAgainstWall) {
+                entity.setCurrentState(Entity::COMBAT); // Dos au mur = Combat
+            } else {
+                entity.setCurrentState(Entity::FLEE);
+            }
+        }
+            // Règle 2 : Manger (Gourmandise)
+            // Si ma stamina est sous le seuil de gourmandise et qu'il y a de la nourriture
+        else if (staminaPct < entity.getGreed() && foodIndex != -1) {
+            entity.setCurrentState(Entity::FORAGE);
+        }
+            // Règle 3 : Combat / Soin
+        else if (closestTarget && closestDist < entity.getSightRadius()) {
+            entity.setCurrentState(Entity::COMBAT);
+        }
+            // Règle 4 : Par défaut
+        else {
+            entity.setCurrentState(Entity::WANDER);
+        }
+
+        // --- 3. ACTION (Exécution de l'état) ---
+        entity.setIsFleeing(false);
+        entity.setIsCharging(false);
+
+        switch (entity.getCurrentState()) {
+            case Entity::FLEE: {
+                if (closestTarget) {
+                    // Vecteur opposé à la menace
+                    int fleeTarget[2] = {
+                            entity.getX() + (entity.getX() - closestTarget->getX()),
+                            entity.getY() + (entity.getY() - closestTarget->getY())
+                    };
+                    entity.chooseDirection(fleeTarget);
+                    entity.setIsFleeing(true);
+                }
+                break;
             }
 
-            bool actionTaken = false;
-            // 1. DANGER IMMEDIAT (Auto-Défense)
-            if (closestThreat && closestThreatDist < 150) {
-                int fleeTarget[2] = { entity.getX() + (entity.getX() - closestThreat->getX()), entity.getY() + (entity.getY() - closestThreat->getY()) };
-                entity.chooseDirection(fleeTarget); entity.setIsFleeing(true);
-                Uint32 currentTime = SDL_GetTicks();
-                if (lastShotTime.find(entity.getName()) == lastShotTime.end() || currentTime > lastShotTime[entity.getName()] + entity.getAttackCooldown()) {
-                    if (entity.consumeStamina(entity.getStaminaAttackCost())) {
-                        Projectile newP(entity.getX(), entity.getY(), closestThreat->getX(), closestThreat->getY(), entity.getProjectileSpeed(), entity.getDamage(), entity.getAttackRange(), entity.getColor(), entity.getProjectileRadius(), entity.getName());
-                        projectiles.push_back(newP); lastShotTime[entity.getName()] = currentTime;
+            case Entity::FORAGE: {
+                if (foodIndex != -1) {
+                    int target[2] = {foods[foodIndex].x, foods[foodIndex].y};
+                    entity.chooseDirection(target);
+                    // Pas de charge, mouvement normal vers la nourriture
+                }
+                break;
+            }
+
+            case Entity::COMBAT: {
+                if (!closestTarget) break; // Sécurité
+
+                int targetPos[2] = {closestTarget->getX(), closestTarget->getY()};
+                int attackRange = entity.getAttackRange();
+                bool isRanged = (entity.getEntityType() == 1);
+                bool isHealer = (entity.getEntityType() == 2);
+
+                // --- Logique de mouvement Combat ---
+                if (isHealer) {
+                    if (targetIsFriendly) {
+                        // COMPORTEMENT DE SOIN (Classique)
+                        if (closestDist < entity.getRad() + closestTarget->getRad() + 10)
+                            entity.chooseDirection(nullptr);
+                        else
+                            entity.chooseDirection(targetPos);
+                    } else {
+                        // COMPORTEMENT D'ATTAQUE (Nouveau : Battle Medic)
+                        // Le Healer se comporte comme un Ranged mais avec moins de portée
+                        int attackRange = entity.getAttackRange(); // Assurez-vous que les Healers ont une portée > 0
+                        if (closestDist > attackRange) entity.chooseDirection(targetPos);
+                        else entity.chooseDirection(nullptr);
                     }
                 }
-                actionTaken = true;
-            }
-                // 2. SOIN
-            else if (targetAlly && closestAllyDist < entity.getSightRadius()) {
-                entity.setIsFleeing(false);
-                int targetPos[2] = {targetAlly->getX(), targetAlly->getY()};
-                if (closestAllyDist < entity.getRad() + targetAlly->getRad() + 40) {
-                    entity.chooseDirection(nullptr);
+                else if (isRanged) {
+                    // Logique de Kiting (Similaire à avant)
+                    float kiteDist = attackRange * entity.getKiteRatio();
+                    if (closestDist < kiteDist && entity.getStamina() > 10) {
+                        // Trop près -> Recule
+                        int back[2] = {entity.getX() + (entity.getX() - targetPos[0]), entity.getY() + (entity.getY() - targetPos[1])};
+                        entity.chooseDirection(back);
+                    } else if (closestDist > attackRange) {
+                        entity.chooseDirection(targetPos);
+                    } else {
+                        entity.chooseDirection(nullptr); // Position de tir idéale
+                    }
+                }
+                else { // Melee
+                    entity.setIsCharging(closestDist > attackRange);
+                    if (closestDist <= attackRange) entity.chooseDirection(nullptr);
+                    else entity.chooseDirection(targetPos);
+                }
+
+                // --- Logique de Tir / Frappe ---
+                if (closestDist <= attackRange + 10) {
                     Uint32 currentTime = SDL_GetTicks();
-                    Uint32 healCooldown = entity.getAttackCooldown() / 2;
-                    if (lastShotTime.find(entity.getName()) == lastShotTime.end() || currentTime > lastShotTime[entity.getName()] + healCooldown) {
+                    Uint32 cooldown = entity.getAttackCooldown();
+                    Uint32 effectiveCooldown = (speedMultiplier > 0) ? (cooldown / speedMultiplier) : cooldown;
+
+                    if (lastShotTime.find(entity.getName()) == lastShotTime.end() || currentTime > lastShotTime[entity.getName()] + effectiveCooldown) {
+
+                        // Coût en stamina standard
                         if (entity.consumeStamina(entity.getStaminaAttackCost())) {
-                            int healAmount = entity.getDamage();
-                            targetAlly->receiveHealing(healAmount);
-                            entity.receiveHealing(healAmount / 2); // Symbiose
+
+                            if (isHealer && targetIsFriendly) {
+                                // --- MECANIQUE DE SACRIFICE (Healer) ---
+                                int healAmount = entity.getDamage();
+                                int selfDamage = healAmount; // Le soigneur perd le soin donné
+
+                                // Sécurité : Le Healer ne se suicide pas pour soigner
+                                if (entity.getHealth() > selfDamage) {
+                                    closestTarget->receiveHealing(healAmount);
+                                    entity.takeDamage(selfDamage);
+                                }
+                            }
+                            else if (isHealer && !targetIsFriendly) {
+                                // ATTAQUE (Battle Medic) - Inchangé
+                                Projectile newP(entity.getX(), entity.getY(), closestTarget->getX(), closestTarget->getY(),
+                                                entity.getProjectileSpeed(), entity.getDamage(), entity.getAttackRange(),
+                                                entity.getColor(), entity.getProjectileRadius(), entity.getName());
+                                projectiles.push_back(newP);
+                            }
+                            else if (isRanged) {
+                                // RANGED - Inchangé
+                                Projectile newP(entity.getX(), entity.getY(), closestTarget->getX(), closestTarget->getY(),
+                                                entity.getProjectileSpeed(), entity.getDamage(), attackRange,
+                                                entity.getColor(), entity.getProjectileRadius(), entity.getName());
+                                projectiles.push_back(newP);
+                            }
+                            else {
+                                // MELEE - Inchangé
+                                closestTarget->takeDamage(entity.getDamage());
+                                closestTarget->knockBackFrom(entity.getX(), entity.getY(), 40);
+                            }
                             lastShotTime[entity.getName()] = currentTime;
                         }
                     }
-                } else entity.chooseDirection(targetPos);
-                actionTaken = true;
-            }
-            if (!actionTaken) { entity.chooseDirection(nullptr); entity.setIsFleeing(false); }
-            continue;
-        }
-
-        // --- MELEE / RANGED ---
-        Entity* closestEnemy = nullptr;
-        auto closestDistance = (float)(WINDOW_WIDTH + WINDOW_HEIGHT);
-        for (auto &other : entities) {
-            if (&entity != &other && other.getIsAlive()) {
-                int dx = entity.getX() - other.getX(); int dy = entity.getY() - other.getY();
-                float distance = std::sqrt((float)dx * dx + (float)dy * dy);
-                if (distance < closestDistance) { closestDistance = distance; closestEnemy = &other; }
-            }
-        }
-
-        if (closestEnemy) {
-            bool isRanged = (myType == 1);
-            int attackRange = entity.getAttackRange();
-            int target[2] = {closestEnemy->getX(), closestEnemy->getY()};
-
-            if (closestDistance < entity.getSightRadius()){
-                if (isRanged) {
-                    entity.setIsCharging(false);
-                    float kiteRatio = entity.getKiteRatio();
-                    int idealRange = (int)(attackRange * kiteRatio);
-
-                    if (closestDistance < idealRange) {
-                        if (entity.getStamina() > 0) {
-                            int fleeTarget[2] = { entity.getX() + (entity.getX() - closestEnemy->getX()) * 2, entity.getY() + (entity.getY() - closestEnemy->getY()) * 2 };
-                            entity.chooseDirection(fleeTarget); entity.setIsFleeing(true);
-                        } else { entity.chooseDirection(nullptr); entity.setIsFleeing(false); }
-                    } else if (closestDistance < attackRange) { entity.chooseDirection(nullptr); entity.setIsFleeing(false); }
-                    else { entity.chooseDirection(target); entity.setIsFleeing(false); }
-                } else {
-                    entity.setIsFleeing(false);
-                    if (closestDistance > attackRange) entity.setIsCharging(true); else entity.setIsCharging(false);
-                    if (closestDistance < attackRange) {
-                        int stopTarget[2] = {entity.getX(), entity.getY()}; entity.chooseDirection(stopTarget);
-                    } else entity.chooseDirection(target);
                 }
-            } else { entity.chooseDirection(nullptr); entity.setIsFleeing(false); entity.setIsCharging(false); }
+                break;
+            }
 
-            if (closestDistance < attackRange) {
-                Uint32 currentTime = SDL_GetTicks();
-                Uint32 cooldown = entity.getAttackCooldown();
-                int damage = entity.getDamage();
-                Uint32 effectiveCooldown = (speedMultiplier > 0) ? (cooldown / speedMultiplier) : cooldown;
-                if (lastShotTime.find(entity.getName()) == lastShotTime.end() || currentTime > lastShotTime[entity.getName()] + effectiveCooldown) {
-                    if (entity.consumeStamina(entity.getStaminaAttackCost())) {
-                        if (isRanged) {
-                            Projectile newP(entity.getX(), entity.getY(), closestEnemy->getX(), closestEnemy->getY(), entity.getProjectileSpeed(), damage, attackRange, entity.getColor(), entity.getProjectileRadius(), entity.getName());
-                            projectiles.push_back(newP);
-                        } else {
-                            closestEnemy->takeDamage(damage);
-                            closestEnemy->knockBackFrom(entity.getX(), entity.getY(), 40);
+            case Entity::WANDER:
+            default: {
+                // --- LOGIQUE DE TRAQUE GLOBALE ---
+                // Si je ne suis pas en combat ou en train de manger, je cherche une cible
+                // n'importe où sur la carte pour me rapprocher.
+
+                Entity* globalTarget = nullptr;
+                float minGlobalDist = 1000000.0f;
+
+                for (auto &other : entities) {
+                    if (&entity != &other && other.getIsAlive()) {
+                        // Je cible tout ce qui n'est pas mon allié
+                        // (Ou même mes alliés si on est en fin de partie < 5 survivants)
+                        bool isEnemy = !entity.isAlliedWith(other);
+                        bool isEndGameTreaosn = (entity.getEntityType() == 2 && entities.size() < 5); // Les healers trahissent à la fin
+
+                        if (isEnemy || isEndGameTreaosn) {
+                            float d = std::hypot(entity.getX() - other.getX(), entity.getY() - other.getY());
+                            if (d < minGlobalDist) {
+                                minGlobalDist = d;
+                                globalTarget = &other;
+                            }
                         }
-                        lastShotTime[entity.getName()] = currentTime;
                     }
                 }
+
+                if (globalTarget) {
+                    // Aim the closest target
+                    int targetPos[2] = {globalTarget->getX(), globalTarget->getY()};
+                    entity.chooseDirection(targetPos);
+                } else {
+                    // No targets found, wander towards center
+                    int center[2] = {WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2};
+                    entity.chooseDirection(center);
+                }
+                break;
             }
-        } else { entity.chooseDirection(nullptr); entity.setIsFleeing(false); entity.setIsCharging(false); }
+        }
     }
 }
 
@@ -426,12 +564,14 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
     int y = 20;
     const int lineHeight = 18;
 
+    // Couleurs
     SDL_Color titleColor  = {255, 215, 0, 255};
     SDL_Color statColor   = {220, 220, 220, 255};
     SDL_Color geneColor   = {100, 200, 255, 255};
     SDL_Color linkColor   = {80, 80, 255, 255};
     SDL_Color badColor    = {255, 100, 100, 255};
     SDL_Color goodColor   = {100, 255, 100, 255};
+    SDL_Color stateColor  = {255, 165, 0, 255}; // Orange pour l'état
 
     if (inspectionStack.size() > 1) {
         stringRGBA(renderer, x + 10, y + 8, "< Back", statColor.r, statColor.g, statColor.b, 255);
@@ -447,26 +587,32 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
 
     std::string hpStr = entityToDisplay == selectedLivingEntity ? std::to_string(entity.getHealth()) : "(Decede)";
     stringRGBA(renderer, x, y, ("Health: " + hpStr + " / " + std::to_string(entity.getMaxHealth())).c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
-
     stringRGBA(renderer, x, y, ("Stamina: " + std::to_string(entity.getStamina())).c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight*1.5;
+
+    // --- ETAT ACTUEL (Votre ajout) ---
+    // Je l'ai remonté ici car c'est une info dynamique importante
+    stringRGBA(renderer, x, y, ("CURRENT STATE: " + entity.getCurrentStateString()).c_str(), stateColor.r, stateColor.g, stateColor.b, 255);
+    y += lineHeight * 1.5;
+
+    // --- COMPORTEMENT (Nouveau : Bravoure & Gourmandise) ---
+    stringRGBA(renderer, x, y, "--- Psychology ---", geneColor.r, geneColor.g, geneColor.b, 255); y += lineHeight;
+    stringRGBA(renderer, x, y, ("Bravery (Flee thresh): " + float_to_string(entity.getBravery() * 100, 0) + "%").c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
+    stringRGBA(renderer, x, y, ("Greed (Eat thresh): " + float_to_string(entity.getGreed() * 100, 0) + "%").c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight * 1.5;
+
 
     // --- GÉNÉALOGIE ---
     stringRGBA(renderer, x, y, "--- Genealogie ---", geneColor.r, geneColor.g, geneColor.b, 255); y += lineHeight;
     stringRGBA(renderer, x, y, ("Gen: " + std::to_string(entity.getGeneration())).c_str(), geneColor.r, geneColor.g, geneColor.b, 255); y += lineHeight;
-
     stringRGBA(renderer, x, y, ("P1: " + entity.getParent1Name()).c_str(), linkColor.r, linkColor.g, linkColor.b, 255);
     panelParent1_rect = {x, y - 2, 250, lineHeight}; y += lineHeight;
-
     stringRGBA(renderer, x, y, ("P2: " + entity.getParent2Name()).c_str(), linkColor.r, linkColor.g, linkColor.b, 255);
     panelParent2_rect = {x, y - 2, 250, lineHeight}; y += lineHeight*1.5;
 
     // --- BODY STATS ---
     stringRGBA(renderer, x, y, "--- Body Stats ---", statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
-
     std::string typeStr = "Melee";
     int eType = entity.getEntityType();
     if(eType == 1) typeStr = "Ranged"; else if(eType == 2) typeStr = "Healer";
-
     stringRGBA(renderer, x, y, ("Type: " + typeStr).c_str(), geneColor.r, geneColor.g, geneColor.b, 255); y += lineHeight;
     stringRGBA(renderer, x, y, ("Rad (Size): " + std::to_string(entity.getRad())).c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
     stringRGBA(renderer, x, y, ("Speed: " + std::to_string(entity.getSpeed())).c_str(), statColor.r, statColor.g, statColor.b, 255); y += lineHeight;
@@ -474,10 +620,8 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
 
     // --- BIO-TRAITS ---
     stringRGBA(renderer, x, y, "--- Bio-Traits ---", geneColor.r, geneColor.g, geneColor.b, 255); y += lineHeight;
-
     int traitID = entity.getCurrentTraitID();
     const TraitStats& stats = TraitManager::get(traitID);
-
     std::string fullTraitTitle = stats.name;
     if (entity.getDamageFragility() > 0.10f) fullTraitTitle += " / Weak";
     if (entity.getMyopiaFactor() > 0.15f)    fullTraitTitle += " / Myopic";
@@ -491,30 +635,24 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
         stringRGBA(renderer, x, y, stats.description.c_str(), statColor.r, statColor.g, statColor.b, 255);
         y += lineHeight;
     }
-
     y += 5;
-
     float frag = entity.getDamageFragility() * 100.0f;
     if(frag > 1.0f) {
         stringRGBA(renderer, x, y, ("(Weak) Dmg Taken: +" + float_to_string(frag,1) + "%").c_str(), badColor.r, badColor.g, badColor.b, 255);
         y += lineHeight;
     }
-
     float myop = entity.getMyopiaFactor() * 100.0f;
     if(myop > 1.0f) {
         stringRGBA(renderer, x, y, ("(Myopic) Vision: -" + float_to_string(myop,1) + "%").c_str(), badColor.r, badColor.g, badColor.b, 255);
         y += lineHeight;
     }
-
     int fert = entity.getFertilityFactor();
     if(fert > 0) {
-        // --- CORRECTION : PLUS DE .c_str() ICI ---
         stringRGBA(renderer, x, y, "(Fertile) Reproduction Bonus: ++", goodColor.r, goodColor.g, goodColor.b, 255);
         y += lineHeight;
         stringRGBA(renderer, x, y, "          Max HP Penalty: -", badColor.r, badColor.g, badColor.b, 255);
         y += lineHeight;
     }
-
     y += 10;
 
     // --- WEAPON STATS ---
@@ -529,6 +667,7 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
         stringRGBA(renderer, x, y, ("Proj Radius: " + std::to_string(entity.getProjectileRadius())).c_str(), statColor.r, statColor.g, statColor.b, 255);
     }
 }
+
 void Simulation::updatePhysics(int speedMultiplier) {
     // Mise à jour individuelle (mouvement)
     for (auto &entity : entities) {
