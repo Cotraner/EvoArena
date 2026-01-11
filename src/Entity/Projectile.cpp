@@ -38,13 +38,14 @@ void Projectile::update() {
     }
 
     // Vérifier si le projectile sort de l'écran
-    if (x < 0 || x > WINDOW_WIDTH || y < 0 || y > WINDOW_HEIGHT) {
-        alive = false;
-    }
+    if (x < 0 || x > WORLD_WIDTH || y < 0 || y > WORLD_HEIGHT) { alive = false; }
 }
 
-void Projectile::draw(SDL_Renderer* renderer) {
+void Projectile::draw(SDL_Renderer* renderer, const Camera& cam) {
     if (alive) {
-        filledCircleRGBA(renderer, (int)x, (int)y, radius, color.r, color.g, color.b, 255);
+        float sx = (x - cam.x) * cam.zoom;
+        float sy = (y - cam.y) * cam.zoom;
+        float sr = radius * cam.zoom;
+        filledCircleRGBA(renderer, (int)sx, (int)sy, (int)sr, color.r, color.g, color.b, 255);
     }
 }

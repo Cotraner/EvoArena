@@ -13,7 +13,7 @@ public:
     ~Projectile();
 
     void update();
-    void draw(SDL_Renderer* renderer);
+    void draw(SDL_Renderer* renderer, const Camera& cam);
 
     // Getters
     int getX() const { return (int)x; }

@@ -18,11 +18,10 @@ public:
     explicit Simulation(int maxEntities);
     ~Simulation();
 
-    void handleEvent(const SDL_Event& event);
     SimUpdateStatus update(int speedMultiplier, bool autoRestart);
-    void render(SDL_Renderer* renderer, bool showDebug);
     int getCurrentGeneration() const { return currentGeneration; }
-
+    void handleEvent(const SDL_Event& event, const Camera& cam);
+    void render(SDL_Renderer* renderer, bool showDebug, const Camera& cam);
     void triggerManualRestart();
 
 private:

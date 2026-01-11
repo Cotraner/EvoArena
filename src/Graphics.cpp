@@ -1,78 +1,112 @@
 #include "Graphics.h"
-#include <SDL2/SDL_image.h> // Assurez-vous que IMG_Load est disponible
+#include <SDL2/SDL_image.h>
 
 Graphics::Graphics(){
     SDL_CreateWindowAndRenderer(0, 0, SDL_WINDOW_MAXIMIZED | SDL_WINDOW_RESIZABLE, &window, &renderer);
     SDL_GetWindowSize(window, &WINDOW_WIDTH, &WINDOW_HEIGHT);
     SDL_SetWindowTitle(window, "EvoArena");
 
-    //Fond vert
-    SDL_SetRenderDrawColor(renderer, 0, 150, 0, 0);
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
+        std::cerr << "SDL_mixer could not initialize! SDL_mixer Error: " << Mix_GetError() << std::endl;
+    }
+
+    // Chargement de la musique
+    // Assurez-vous que le fichier est bien à cet endroit !
+    bgMusic = Mix_LoadMUS("../assets/sounds/music.mp3");
+    if (bgMusic == nullptr) {
+        std::cerr << "Failed to load beat music! SDL_mixer Error: " << Mix_GetError() << std::endl;
+    }
+
+    // Fond vert par défaut
+    SDL_SetRenderDrawColor(renderer, 0, 50, 0, 255);
     SDL_RenderClear(renderer);
+
+    // Chargement texture jeu
     SDL_Surface* surface = IMG_Load("../assets/images/background.jpg");
-    if (!surface) {
-        std::cerr << "Erreur IMG_Load: " << IMG_GetError() << std::endl;
-    } else {
+    if (surface) {
         background = SDL_CreateTextureFromSurface(renderer, surface);
         SDL_FreeSurface(surface);
-        if (!background) {
-            std::cerr << "Erreur création texture : " << SDL_GetError() << std::endl;
-        }
     }
+
+    // Chargement texture menu
     SDL_Surface* menuBgSurface = IMG_Load("../assets/images/backgroundMenu.jpg");
-    if (!menuBgSurface) {
-        std::cerr << "Erreur IMG_Load pour le fond du menu: " << IMG_GetError() << std::endl;
-    } else {
+    if (menuBgSurface) {
         menuBackgroundTexture = SDL_CreateTextureFromSurface(renderer, menuBgSurface);
         SDL_FreeSurface(menuBgSurface);
-        if (!menuBackgroundTexture) {
-            std::cerr << "Erreur création texture menu : " << SDL_GetError() << std::endl;
-        }
     }
 
-    // Chargement de l'icône des paramètres
+    // Icône settings
     SDL_Surface* settingsIconSurface = IMG_Load("../assets/images/settings-icon.png");
-    if (!settingsIconSurface) {
-        std::cerr << "Erreur IMG_Load pour l'icône settings: " << IMG_GetError() << std::endl;
-    } else {
+    if (settingsIconSurface) {
         settingsIconTexture = SDL_CreateTextureFromSurface(renderer, settingsIconSurface);
         SDL_FreeSurface(settingsIconSurface);
-        if (!settingsIconTexture) {
-            std::cerr << "Erreur création texture icône settings : " << SDL_GetError() << std::endl;
-        }
     }
-
-    SDL_RenderPresent(renderer);
 }
 
 Graphics::~Graphics() {
-    if (renderer) {
-        SDL_DestroyRenderer(renderer);
-        this->renderer = nullptr;
+    if (renderer) SDL_DestroyRenderer(renderer);
+    if (window) SDL_DestroyWindow(window);
+    if (background) SDL_DestroyTexture(background);
+    if (menuBackgroundTexture) SDL_DestroyTexture(menuBackgroundTexture);
+    if (settingsIconTexture) SDL_DestroyTexture(settingsIconTexture);
+    if (bgMusic) {
+        Mix_FreeMusic(bgMusic);
+        bgMusic = nullptr;
     }
-    if (window) {
-        SDL_DestroyWindow(window);
-        window = nullptr;
-    }
-    if (background) {
-        SDL_DestroyTexture(background);
-        background = nullptr;
-    }
-    if (menuBackgroundTexture) {
-        SDL_DestroyTexture(menuBackgroundTexture);
-        menuBackgroundTexture = nullptr;
-    }
-    // *** NOUVEAU : Destruction de l'icône ***
-    if (settingsIconTexture) {
-        SDL_DestroyTexture(settingsIconTexture);
-        settingsIconTexture = nullptr;
-    }
-
     SDL_Quit();
 }
 
-void Graphics::drawBackground() {
+void Graphics::drawBackground(const Camera& cam) {
+    // 1. DESSIN DU FOND (Image étirée sur tout le monde)
     if (background) {
-        SDL_RenderCopy(renderer, background, nullptr, nullptr);
+        // Calcul de la position du monde vue par la caméra
+        SDL_Rect dest;
+        dest.x = (int)((0 - cam.x) * cam.zoom);
+        dest.y = (int)((0 - cam.y) * cam.zoom);
+        dest.w = (int)(WORLD_WIDTH * cam.zoom);
+        dest.h = (int)(WORLD_HEIGHT * cam.zoom);
+
+        // On dessine l'image de fond sur toute la surface du monde
+        SDL_RenderCopy(renderer, background, nullptr, &dest);
+    } else {
+        // Fallback couleur unie si pas d'image
+        SDL_SetRenderDrawColor(renderer, 20, 20, 20, 255);
+        SDL_RenderClear(renderer);
     }
+
+    // 2. DESSIN D'UNE GRILLE (Indispensable pour voir le mouvement si le fond est uni)
+    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 100); // Gris foncé
+
+    int gridSize = 100; // Taille des cases en pixels monde
+
+
+    // 3. DESSIN DES BORDURES DU MONDE (Cadre Rouge)
+    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+    SDL_Rect worldBorder;
+    worldBorder.x = (int)((0 - cam.x) * cam.zoom);
+    worldBorder.y = (int)((0 - cam.y) * cam.zoom);
+    worldBorder.w = (int)(WORLD_WIDTH * cam.zoom);
+    worldBorder.h = (int)(WORLD_HEIGHT * cam.zoom);
+    SDL_RenderDrawRect(renderer, &worldBorder);
+}
+
+void Graphics::playMusic() {
+    if (bgMusic) {
+        // Si la musique ne joue pas déjà
+        if (Mix_PlayingMusic() == 0) {
+            // -1 signifie "boucle infinie"
+            Mix_PlayMusic(bgMusic, -1);
+        }
+        else {
+            // Si elle était en pause, on reprend
+            if (Mix_PausedMusic() == 1) {
+                Mix_ResumeMusic();
+            }
+        }
+    }
+}
+
+void Graphics::stopMusic() {
+    // On arrête complètement la musique (Halt)
+    Mix_HaltMusic();
 }

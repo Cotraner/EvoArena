@@ -4,7 +4,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include <SDL2/SDL_image.h>
-#include "../constants.h"
+#include "../constants.h" // Assurez-vous que struct Camera est bien dedans !
 #include <algorithm>
 #include <string>
 #include <cstdlib>
@@ -15,6 +15,7 @@
 class Projectile;
 
 class Entity {
+
 public:
     enum State {
         WANDER, // Errance
@@ -29,7 +30,8 @@ public:
     ~Entity();
 
     void update(int speedMultiplier);
-    void draw(SDL_Renderer* renderer, bool showDebug = false);
+    // Note: On passe Camera par référence constante
+    void draw(SDL_Renderer* renderer, const Camera& cam, bool showDebug = false);
     void chooseDirection(int target[2] = nullptr);
 
     // --- KNOCKBACK ---
@@ -80,6 +82,8 @@ public:
     int getRad() const { return rad; }
     int getSightRadius() const { return sightRadius; }
     State getCurrentState() const { return currentState; }
+
+    // CORRECTION ICI : Suppression de la ligne en double
     std::string getCurrentStateString() const {
         switch (currentState) {
             case WANDER: return "WANDER";
@@ -95,7 +99,7 @@ public:
     float getKiteRatio() const { return geneticCode[2]; }
     float getWeaponGene() const { return geneticCode[1]; }
 
-    // Note: getIsRanged est conservé pour compatibilité, mais getEntityType est préféré
+    // Note: getIsRanged est conservé pour compatibilité
     bool getIsRanged() const { return getEntityType() == 1; }
 
     int getGeneration() const { return generation; }
@@ -137,8 +141,6 @@ public:
         if (stamina > maxStamina) stamina = maxStamina;
 
         // Calcul de la durée adaptée
-        // Base de 60 frames divisée par la vitesse.
-        // On s'assure que ça dure au moins 1 frame pour qu'on voie un petit "clignotement" même en x100
         int duration = 10 / (speedMultiplier > 0 ? speedMultiplier : 1);
         if (duration < 1) duration = 1;
 

@@ -18,6 +18,8 @@
 
 int WINDOW_WIDTH = 1280;
 int WINDOW_HEIGHT = 720;
+int WORLD_WIDTH = 5000;
+int WORLD_HEIGHT = 5000;
 
 // --- DÉFINITION DE L'ÉTAT DU JEU ---
 enum GameState {
@@ -52,12 +54,21 @@ namespace {
     SDL_Texture* settingsIconTexture = nullptr;
     SDL_Rect settingsIconRect = {10, 10, 40, 40};
 
+    // --- NOUVEAU : Gestion du Dropdown Vitesse ---
+    bool isSpeedDropdownOpen = false;
+    const std::vector<int> availableSpeeds = {1, 2, 5, 10, 50, 100, 500};
+    std::vector<SDL_Rect> speedDropdownRects; // Stocke les hitboxes des options
+    // ---------------------------------------------
+
     ControlButton pauseButton;
     ControlButton speedButton;
     ControlButton restartButton;
     ControlButton debugButton;
     ControlButton autoRestartButton;
     ControlButton manualRestartButton;
+
+    // --- NOUVEAU : Bouton Retour Menu ---
+    ControlButton menuButton;
 
     const SDL_Color disabledButtonColor = {40, 40, 40, 255};
     const SDL_Color disabledTextColor = {100, 100, 100, 255};
@@ -81,12 +92,18 @@ int main() {
         SDL_SetWindowSize(graphics.getWindow(), 1280, 720); // Force une taille physique
     }
 
+    // Position initiale de la caméra (centrée sur le monde)
+    Camera camera;
+    camera.x = (WORLD_WIDTH - WINDOW_WIDTH) / 2.0f;
+    camera.y = (WORLD_HEIGHT - WINDOW_HEIGHT) / 2.0f;
+    camera.zoom = 1.0f; // Zoom par défaut
+
     std::unique_ptr<Simulation> simulation = nullptr;
 
     // --- PARAMÈTRES DE JEU AJUSTABLES ---
-    int maxEntities = 15;
-    const int MIN_CELLS = 5;
-    const int MAX_CELLS = 50;
+    int maxEntities = 100;
+    const int MIN_CELLS = 20;
+    const int MAX_CELLS = 300;
 
     // --- PARAMÈTRES FIXES POUR LE PROJECTILE (RNG) ---
     const int PROJECTILE_SPEED = 8;
@@ -128,6 +145,33 @@ int main() {
                 }
             }
 
+            // ZOOM (Molette) - Zoom vers le curseur
+            if (event.type == SDL_MOUSEWHEEL) {
+                int mouseX, mouseY;
+                SDL_GetMouseState(&mouseX, &mouseY);
+
+                // Point du MONDE sous la souris AVANT le zoom
+                float worldMouseBeforeX = mouseX / camera.zoom + camera.x;
+                float worldMouseBeforeY = mouseY / camera.zoom + camera.y;
+
+                if (event.wheel.y > 0) camera.zoom *= 1.1f;
+                else if (event.wheel.y < 0) camera.zoom /= 1.1f;
+
+                if (camera.zoom < 0.1f) camera.zoom = 0.1f;
+                if (camera.zoom > 5.0f) camera.zoom = 5.0f;
+
+                // Calage de la caméra pour garder le point sous la souris
+                camera.x = worldMouseBeforeX - (mouseX / camera.zoom);
+                camera.y = worldMouseBeforeY - (mouseY / camera.zoom);
+            }
+                // DEPLACEMENT (Clic Molette ou Droit maintenu)
+            else if (event.type == SDL_MOUSEMOTION) {
+                if (event.motion.state & SDL_BUTTON_RMASK) { // Clic droit pour bouger
+                    camera.x -= event.motion.xrel / camera.zoom;
+                    camera.y -= event.motion.yrel / camera.zoom;
+                }
+            }
+
             // GESTION DES ÉVÉNEMENTS DU MENU
             if (currentState == MENU) {
                 Menu::MenuAction action = menu.handleEvents(event);
@@ -141,6 +185,7 @@ int main() {
                         showDebug = false;
                         isControlPanelVisible = false;
                         currentState = SIMULATION;
+                        graphics.playMusic();
                     } else if (action == Menu::QUIT) {
                         running = false;
                     } else if (action == Menu::OPEN_SETTINGS) {
@@ -170,54 +215,89 @@ int main() {
                     SDL_Point mousePoint = {event.button.x, event.button.y};
                     bool clickHandled = false;
 
-                    // Les clics sont hierarchisés : les panneaux passent avant les entités
-                    // Priorité : Clic sur l'icône (ouverture/fermeture du panneau)
+                    // 1. Clic sur l'icône (ouverture/fermeture du panneau)
                     if (SDL_PointInRect(&mousePoint, &settingsIconRect)) {
                         isControlPanelVisible = !isControlPanelVisible;
+                        // Si on ferme le panneau, on ferme aussi le dropdown par sécurité
+                        if (!isControlPanelVisible) isSpeedDropdownOpen = false;
                         clickHandled = true;
                     }
 
-                        // Priorité : Clic sur le panneau de contrôle
+                        // 2. Clic sur le panneau de contrôle
                     else if (mousePoint.x < (int)controlPanelCurrentX + CONTROL_PANEL_WIDTH) {
-                        if (SDL_PointInRect(&mousePoint, &pauseButton.rect)) {
-                            isPaused = !isPaused;
-                            clickHandled = true;
-                        } else if (SDL_PointInRect(&mousePoint, &speedButton.rect)) {
-                            // Logique de changement de vitesse
-                            if (simulationSpeed == 1) simulationSpeed = 2;
-                            else if (simulationSpeed == 2) simulationSpeed = 5;
-                            else if (simulationSpeed == 5) simulationSpeed = 10;
-                            else if (simulationSpeed == 10) simulationSpeed = 50;
-                            else if (simulationSpeed == 50) simulationSpeed = 100;
-                            else if (simulationSpeed == 100) simulationSpeed = 250;
-                            else simulationSpeed = 1;
-                            clickHandled = true;
-                        } else if (SDL_PointInRect(&mousePoint, &restartButton.rect)) {
-                            simulation = std::make_unique<Simulation>(maxEntities);
-                            isPaused = false;
-                            simulationSpeed = 1;
-                            showDebug = false;
-                            clickHandled = true;
-                        } else if (SDL_PointInRect(&mousePoint, &debugButton.rect)) {
-                            showDebug = !showDebug;
-                            clickHandled = true;
-                        }
-                        else if (SDL_PointInRect(&mousePoint, &autoRestartButton.rect)) {
-                            autoRestart = !autoRestart;
-                            clickHandled = true;
-                        }
-                        else if (SDL_PointInRect(&mousePoint, &manualRestartButton.rect)) {
-                            if (currentSimRunState == POST_COMBAT) {
-                                simulation->triggerManualRestart();
-                                currentSimRunState = RUNNING;
+
+                        // A. GESTION DU DROPDOWN VITESSE (Priorité élevée car affiché par-dessus)
+                        if (isSpeedDropdownOpen) {
+                            bool optionClicked = false;
+                            for (size_t i = 0; i < speedDropdownRects.size(); ++i) {
+                                if (SDL_PointInRect(&mousePoint, &speedDropdownRects[i])) {
+                                    simulationSpeed = availableSpeeds[i];
+                                    isSpeedDropdownOpen = false;
+                                    clickHandled = true;
+                                    optionClicked = true;
+                                    break;
+                                }
                             }
-                            clickHandled = true;
+                            // Si on clique ailleurs alors que le menu est ouvert
+                            if (!optionClicked) {
+                                // Si on reclique sur le bouton vitesse, ça le ferme (toggle)
+                                if (SDL_PointInRect(&mousePoint, &speedButton.rect)) {
+                                    isSpeedDropdownOpen = false;
+                                    clickHandled = true;
+                                } else {
+                                    // Clic ailleurs dans le panel -> Ferme le menu mais traite le clic potentiellement
+                                    isSpeedDropdownOpen = false;
+                                    // On ne met PAS clickHandled = true pour laisser le clic activer un autre bouton
+                                }
+                            }
+                        }
+
+                        // B. BOUTONS STANDARDS (Si pas géré par le dropdown)
+                        if (!clickHandled) {
+                            if (SDL_PointInRect(&mousePoint, &pauseButton.rect)) {
+                                isPaused = !isPaused;
+                                clickHandled = true;
+                            }
+                            else if (SDL_PointInRect(&mousePoint, &speedButton.rect)) {
+                                // Toggle du menu déroulant
+                                isSpeedDropdownOpen = !isSpeedDropdownOpen;
+                                clickHandled = true;
+                            }
+                            else if (SDL_PointInRect(&mousePoint, &restartButton.rect)) {
+                                simulation = std::make_unique<Simulation>(maxEntities);
+                                isPaused = false;
+                                simulationSpeed = 1;
+                                showDebug = false;
+                                clickHandled = true;
+                            }
+                            else if (SDL_PointInRect(&mousePoint, &debugButton.rect)) {
+                                showDebug = !showDebug;
+                                clickHandled = true;
+                            }
+                            else if (SDL_PointInRect(&mousePoint, &autoRestartButton.rect)) {
+                                autoRestart = !autoRestart;
+                                clickHandled = true;
+                            }
+                            else if (SDL_PointInRect(&mousePoint, &manualRestartButton.rect)) {
+                                if (currentSimRunState == POST_COMBAT) {
+                                    simulation->triggerManualRestart();
+                                    currentSimRunState = RUNNING;
+                                }
+                                clickHandled = true;
+                            }
+                            else if (SDL_PointInRect(&mousePoint, &menuButton.rect)) {
+                                currentState = MENU;
+                                menu.setScreenState(Menu::MAIN_MENU);
+                                isControlPanelVisible = false;
+                                clickHandled = true;
+                                graphics.stopMusic();
+                            }
                         }
                     }
 
-                    // Clic sur la simulation (pour sélectionner une entité)
+                    // 3. Clic sur la simulation (pour sélectionner une entité)
                     if (!clickHandled) {
-                        simulation->handleEvent(event);
+                        simulation->handleEvent(event, camera);
                     }
                 }
             }
@@ -245,9 +325,9 @@ int main() {
 
             // RENDU
             SDL_RenderClear(graphics.getRenderer());
-            graphics.drawBackground();
+            graphics.drawBackground(camera); // Utilisation de la version avec Camera
 
-            simulation->render(graphics.getRenderer(), showDebug);
+            simulation->render(graphics.getRenderer(), showDebug, camera);
             int genNum = simulation ? simulation->getCurrentGeneration() : 0;
 
             // Dessin du panneau de contrôle
@@ -279,8 +359,6 @@ std::vector<Entity> initializeSimulation(int maxEntities) {
     std::srand(std::time(0));
 
     const int RANGED_COUNT = maxEntities / 3;
-
-    // --- Plages pour l'initialisation aléatoire simple (tirées du JSON) ---
     const float FRAGILITY_MAX = 0.3f;
     const float EFFICIENCY_MAX = 0.5f;
     const float REGEN_MAX = 0.2f;
@@ -293,15 +371,12 @@ std::vector<Entity> initializeSimulation(int maxEntities) {
 
     for (int i = 0; i < maxEntities; ++i) {
         int randomRad = 10 + (std::rand() % 31);
-        int randomX = randomRad + (std::rand() % (WINDOW_WIDTH - 2 * randomRad));
-        int randomY = randomRad + (std::rand() % (WINDOW_HEIGHT - 2 * randomRad));
+        int randomX = randomRad + (std::rand() % (WORLD_WIDTH - 2 * randomRad));
+        int randomY = randomRad + (std::rand() % (WORLD_HEIGHT - 2 * randomRad));
 
         std::string name = "E" + std::to_string(i + 1);
         SDL_Color color = Entity::generateRandomColor();
 
-        bool isRangedGene = (i < RANGED_COUNT) ? true : (std::rand() % 2 == 0);
-
-        // --- NOUVEAUX GÈNES (Initialisation à Neutre / Mutation) ---
         float df = NEUTRAL_FLOAT;
         float se = NEUTRAL_FLOAT;
         float bhr = NEUTRAL_FLOAT;
@@ -310,7 +385,6 @@ std::vector<Entity> initializeSimulation(int maxEntities) {
         int ff = NEUTRAL_INT;
         float ar = NEUTRAL_FLOAT;
 
-        // Logique 50% Muté
         if (std::rand() % 2 != 0) {
             int geneIndex = std::rand() % 7;
             switch (geneIndex) {
@@ -325,27 +399,19 @@ std::vector<Entity> initializeSimulation(int maxEntities) {
         }
         float newGeneticCode[12];
         newEntities.emplace_back(
-                name, // Nom
-                randomX, // X
-                randomY, // Y
-                color, // Couleur
-                newGeneticCode, // Le tableau complet des 12 gènes (float*)
-                0, // Génération (0 pour l'initialisation)
-                "NONE", // Parent 1
-                "NONE"  // Parent 2
+                name, randomX, randomY, color, newGeneticCode, 0, "NONE", "NONE"
         );
     }
     return newEntities;
 }
 
-// --- DÉFINITION DE drawControlPanel (Pour la compilation) ---
+// --- DÉFINITION DE drawControlPanel ---
 namespace {
     void drawControlPanel(SDL_Renderer* renderer, int panelX, int currentGen) {
         SDL_Rect panelRect = {panelX, 0, CONTROL_PANEL_WIDTH, WINDOW_HEIGHT};
         SDL_SetRenderDrawColor(renderer, 30, 30, 30, 220);
         SDL_RenderFillRect(renderer, &panelRect);
 
-        // 2. Définitions du style
         int x = panelX + 10;
         int y = 60;
         int buttonHeight = 40;
@@ -359,26 +425,21 @@ namespace {
         const SDL_Color disabledButtonColor = {40, 40, 40, 255};
         const SDL_Color disabledTextColor = {100, 100, 100, 255};
 
-
-        // Fonction d'aide pour dessiner un bouton
         auto drawButton = [&](ControlButton& btn, const std::string& text, bool enabled = true) {
             btn.text = text;
             btn.rect = {x, y, buttonWidth, buttonHeight};
 
-            // Choisir la couleur (activé/désactivé)
             SDL_Color currentBtnColor = enabled ? buttonColor : disabledButtonColor;
             SDL_Color currentTextColor = enabled ? textColor : disabledTextColor;
 
-            // Dessin du fond du bouton
             SDL_SetRenderDrawColor(renderer, currentBtnColor.r, currentBtnColor.g, currentBtnColor.b, 255);
             SDL_RenderFillRect(renderer, &btn.rect);
 
-            // Dessin du texte au centre
             stringRGBA(renderer, x + buttonWidth / 2 - (text.length() * 4),
                        y + buttonHeight / 2 - 5,
                        text.c_str(), currentTextColor.r, currentTextColor.g, currentTextColor.b, 255);
 
-            y += buttonHeight + spacing; // Avance le curseur Y
+            y += buttonHeight + spacing;
         };
 
 
@@ -388,9 +449,13 @@ namespace {
         stringRGBA(renderer, x, y, "--- Settings ---", titleColor.r, titleColor.g, titleColor.b, 255);
         y += 25;
 
-        // 3. Dessiner les boutons (Contrôles Généraux)
+        // 3. Dessiner les boutons
         drawButton(pauseButton, isPaused ? "Play" : "Pause");
-        drawButton(speedButton, "Speed: " + std::to_string(simulationSpeed) + "x");
+
+        // --- BOUTON VITESSE (avec indicateur) ---
+        std::string speedText = "Speed: " + std::to_string(simulationSpeed) + "x" + (isSpeedDropdownOpen ? " ^" : " v");
+        drawButton(speedButton, speedText);
+
         drawButton(debugButton, showDebug ? "Debug: ON" : "Debug: OFF");
 
         y += 20;
@@ -411,17 +476,47 @@ namespace {
 
 
         // --- CONTRÔLES DE REDÉMARRAGE ---
-
-        // Bouton Auto Restart
         std::string autoText = autoRestart ? "Auto Restart: ON" : "Auto Restart: OFF";
         drawButton(autoRestartButton, autoText);
 
-        // Bouton Manual Relaunch (activé seulement si en POST_COMBAT)
         bool manualEnabled = (currentSimRunState == POST_COMBAT);
         drawButton(manualRestartButton, "Relaunch (Survivors)", manualEnabled);
-
-        // Bouton Restart (Gen 0)
         y += 20;
         drawButton(restartButton, "Restart (Gen 0)");
+        y += 20;
+
+        drawButton(menuButton, "Return to Menu");
+
+        // --- DESSIN DU DROPDOWN (EN DERNIER pour être au dessus) ---
+        speedDropdownRects.clear();
+        if (isSpeedDropdownOpen) {
+            // Position : Juste en dessous du bouton vitesse
+            int ddX = speedButton.rect.x;
+            int ddY = speedButton.rect.y + speedButton.rect.h;
+            int ddW = speedButton.rect.w;
+            int ddH = 30; // Hauteur par option
+
+            for (int sp : availableSpeeds) {
+                SDL_Rect optRect = {ddX, ddY, ddW, ddH};
+                speedDropdownRects.push_back(optRect);
+
+                // Fond
+                SDL_SetRenderDrawColor(renderer, 60, 60, 60, 255);
+                SDL_RenderFillRect(renderer, &optRect);
+
+                // Bordure
+                SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+                SDL_RenderDrawRect(renderer, &optRect);
+
+                // Texte
+                std::string txt = std::to_string(sp) + "x";
+                // Highlight si sélectionné
+                SDL_Color c = (simulationSpeed == sp) ? SDL_Color{100, 255, 100, 255} : SDL_Color{200, 200, 200, 255};
+
+                stringRGBA(renderer, ddX + 20, ddY + 8, txt.c_str(), c.r, c.g, c.b, 255);
+
+                ddY += ddH;
+            }
+        }
     }
 }

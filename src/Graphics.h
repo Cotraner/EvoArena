@@ -1,13 +1,10 @@
-// Graphics.h
-
 #ifndef EVOARENA_GRAPHICS_H
 #define EVOARENA_GRAPHICS_H
 
 #include <iostream>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL2_gfxPrimitives.h>
-
-#include "Entity/Entity.h"
+#include <SDL2/SDL_mixer.h> // <--- NOUVEAU : Inclure Mixer
 #include "constants.h"
 
 class Graphics {
@@ -17,11 +14,14 @@ public:
 
     SDL_Renderer* getRenderer() { return renderer; } ;
     SDL_Window* getWindow() { return window; } ;
-    void drawBackground();
 
-    // Permet à main.cpp d'accéder à la texture
+    void drawBackground(const Camera& cam);
+
     SDL_Texture* getMenuBackgroundTexture() { return menuBackgroundTexture; } ;
-    SDL_Texture* getSettingsIconTexture() { return settingsIconTexture; } ; // *** NOUVEAU ***
+    SDL_Texture* getSettingsIconTexture() { return settingsIconTexture; } ;
+
+    void playMusic();
+    void stopMusic();
 
 private:
     SDL_Window* window;
@@ -29,6 +29,8 @@ private:
     SDL_Texture* background = nullptr;
     SDL_Texture* menuBackgroundTexture = nullptr;
     SDL_Texture* settingsIconTexture = nullptr;
+
+    Mix_Music* bgMusic = nullptr;
 };
 
 #endif //EVOARENA_GRAPHICS_H

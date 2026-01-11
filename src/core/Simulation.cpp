@@ -10,7 +10,7 @@
 
 namespace {
     const int PANEL_WIDTH = 300;
-    const int SURVIVOR_COUNT = 5;
+    const int SURVIVOR_COUNT = 20;
     const int MUTATION_CHANCE_PERCENT = 5;
     const int RAD_MUTATION_AMOUNT = 3;
     const int GENE_MUTATION_AMOUNT = 10;
@@ -58,8 +58,8 @@ void Simulation::initialize(int initialEntityCount) {
         // --- 1. Physique & Position ---
         newGeneticCode[0] = 10.0f + (float)(std::rand() % 31);
         int randomRad = (int)newGeneticCode[0];
-        int randomX = randomRad + (std::rand() % (WINDOW_WIDTH - 2 * randomRad));
-        int randomY = randomRad + (std::rand() % (WINDOW_HEIGHT - 2 * randomRad));
+        int randomX = randomRad + (std::rand() % (WORLD_WIDTH - 2 * randomRad));
+        int randomY = randomRad + (std::rand() % (WORLD_HEIGHT - 2 * randomRad));
 
         std::string name = "G0-E" + std::to_string(i + 1);
         SDL_Color color = Entity::generateRandomColor();
@@ -160,7 +160,16 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
             // A. MOYENNE : L'enfant est la moyenne des deux parents
             float geneP1 = parent1.getGeneticCode()[idx];
             float geneP2 = parent2.getGeneticCode()[idx];
-            childGeneticCode[idx] = (geneP1 + geneP2) / 2.0f;
+            int crossoverStrategy = std::rand() % 3;
+            if (crossoverStrategy == 0) {
+                childGeneticCode[idx] = (geneP1 + geneP2) / 2.0f; // Moyenne simple
+            } else if (crossoverStrategy == 1) {
+                if(std::rand() % 2 == 0) childGeneticCode[idx] = geneP1; // Gène du parent 1
+                else childGeneticCode[idx] = geneP2; // Gène du parent 2
+            } else  {
+                float ratio = (float)(std::rand() % 101) / 100.0f;
+                childGeneticCode[idx] = geneP1 * ratio + geneP2 * (1.0f - ratio); // Moyenne pondérée
+            }
 
             // B. MUTATION : Ajout d'un chaos aléatoire
             if ((std::rand() % 100) < MUTATION_CHANCE_PERCENT) {
@@ -212,9 +221,8 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
         // --- Finalisation ---
         std::string newName = "G" + std::to_string(newGen) + "-E" + std::to_string(i + 1);
         int randomRad = (int)childGeneticCode[0];
-        int randomX = randomRad + (std::rand() % (WINDOW_WIDTH - 2 * randomRad));
-        int randomY = randomRad + (std::rand() % (WINDOW_HEIGHT - 2 * randomRad));
-
+        int randomX = randomRad + (std::rand() % (WORLD_WIDTH - 2 * randomRad));
+        int randomY = randomRad + (std::rand() % (WORLD_HEIGHT - 2 * randomRad));
         newGeneration.emplace_back(newName, randomX, randomY, childColor, childGeneticCode, newGen, parent1.getName(), parent2.getName());
     }
 
@@ -225,7 +233,7 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
 
 void Simulation::triggerManualRestart() { triggerReproduction(lastSurvivors); }
 
-void Simulation::handleEvent(const SDL_Event &event) {
+void Simulation::handleEvent(const SDL_Event &event, const Camera& cam) {
     if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
         int mouseX = event.button.x;
         int mouseY = event.button.y;
@@ -241,12 +249,19 @@ void Simulation::handleEvent(const SDL_Event &event) {
             }
             return;
         }
+        float worldMouseX = mouseX / cam.zoom + cam.x;
+        float worldMouseY = mouseY / cam.zoom + cam.y;
         bool entityClicked = false;
         for (auto& entity : entities) {
             if (!entity.getIsAlive()) continue;
-            int dx = mouseX - entity.getX(); int dy = mouseY - entity.getY();
+            int dx = worldMouseX - entity.getX();
+            int dy = worldMouseY - entity.getY();
             if (std::sqrt((float)dx*dx + dy*dy) < entity.getRad()) {
-                selectedLivingEntity = &entity; inspectionStack.clear(); inspectionStack.push_back(entity); entityClicked = true; break;
+                selectedLivingEntity = &entity;
+                inspectionStack.clear();
+                inspectionStack.push_back(entity);
+                entityClicked = true;
+                break;
             }
         }
         if (!entityClicked) { selectedLivingEntity = nullptr; inspectionStack.clear(); }
@@ -718,19 +733,26 @@ void Simulation::cleanupDead() {
     entities.erase(std::remove_if(entities.begin(), entities.end(), [](const Entity &entity) { return !entity.getIsAlive(); }), entities.end());
 }
 
-void Simulation::render(SDL_Renderer *renderer, bool showDebug) {
-    // --- DESSIN NOURRITURE ---
+void Simulation::render(SDL_Renderer* renderer, bool showDebug, const Camera& cam) {    // --- DESSIN NOURRITURE ---
     for (const auto& f : foods) {
-        // Cercle plein vert foncé + contour vert clair
-        filledCircleRGBA(renderer, f.x, f.y, f.radius, 34, 139, 34, 255);
-        circleRGBA(renderer, f.x, f.y, f.radius, 144, 238, 144, 200);
+        float sx = (f.x - cam.x) * cam.zoom;
+        float sy = (f.y - cam.y) * cam.zoom;
+        float sr = f.radius * cam.zoom;
+        filledCircleRGBA(renderer, (int)sx, (int)sy, (int)sr, 34, 139, 34, 255);
     }
-    // -------------------------
+    // Entités et projectiles avec caméra
+    for (auto &entity : entities) entity.draw(renderer, cam, showDebug);
+    for (auto &proj : projectiles) proj.draw(renderer, cam);
 
-    for (auto &entity : entities) entity.draw(renderer, showDebug);
-    for (auto &proj : projectiles) proj.draw(renderer);
+    // Cercle de sélection (avec zoom)
+    if (selectedLivingEntity != nullptr) {
+        float sx = (selectedLivingEntity->getX() - cam.x) * cam.zoom;
+        float sy = (selectedLivingEntity->getY() - cam.y) * cam.zoom;
+        float sr = (selectedLivingEntity->getRad() + 4) * cam.zoom;
+        circleRGBA(renderer, (int)sx, (int)sy, (int)sr, 255, 255, 0, 200);
+    }
 
-    if (selectedLivingEntity != nullptr) circleRGBA(renderer, selectedLivingEntity->getX(), selectedLivingEntity->getY(), selectedLivingEntity->getRad() + 4, 255, 255, 0, 200);
+    // UI Panel (SANS ZOOM - Reste fixe à l'écran)
     if (panelCurrentX < WINDOW_WIDTH) drawStatsPanel(renderer, static_cast<int>(panelCurrentX));
 }
 
@@ -739,8 +761,8 @@ void Simulation::spawnFood() {
     if (foods.size() < MAX_FOOD_COUNT && (rand() % 100 < FOOD_SPAWN_RATE)) {
         Food f;
         // On évite les bords de l'écran (marge de 20px)
-        f.x = 20 + (rand() % (WINDOW_WIDTH - 40));
-        f.y = 20 + (rand() % (WINDOW_HEIGHT - 40));
+        f.x = 20 + (rand() % (WORLD_WIDTH - 40));
+        f.y = 20 + (rand() % (WORLD_HEIGHT - 40));
         foods.push_back(f);
     }
 }
