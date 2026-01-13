@@ -16,6 +16,19 @@ Graphics::Graphics(){
     if (bgMusic == nullptr) {
         std::cerr << "Failed to load beat music! SDL_mixer Error: " << Mix_GetError() << std::endl;
     }
+    menuMusic = Mix_LoadMUS("../assets/sounds/menu_music.mp3");
+    if (menuMusic == nullptr) {
+        std::cerr << "Erreur chargement menu_music: " << Mix_GetError() << std::endl;
+    }
+    soundPlus = Mix_LoadWAV("../assets/sounds/nb_entite_plus.mp3");
+    if (soundPlus == nullptr) {
+        std::cerr << "Erreur chargement soundPlus: " << Mix_GetError() << std::endl;
+    }
+
+    soundMin = Mix_LoadWAV("../assets/sounds/nb_entite_moin.mp3");
+    if (soundMin == nullptr) {
+        std::cerr << "Erreur chargement soundMinus: " << Mix_GetError() << std::endl;
+    }
 
     // Fond vert par défaut
     SDL_SetRenderDrawColor(renderer, 0, 50, 0, 255);
@@ -49,9 +62,16 @@ Graphics::~Graphics() {
     if (background) SDL_DestroyTexture(background);
     if (menuBackgroundTexture) SDL_DestroyTexture(menuBackgroundTexture);
     if (settingsIconTexture) SDL_DestroyTexture(settingsIconTexture);
+
+    if (soundPlus) Mix_FreeChunk(soundPlus);
+    if (soundMin) Mix_FreeChunk(soundMin);
     if (bgMusic) {
         Mix_FreeMusic(bgMusic);
         bgMusic = nullptr;
+    }
+    if (menuMusic) {
+        Mix_FreeMusic(menuMusic);
+        menuMusic = nullptr;
     }
     SDL_Quit();
 }
@@ -106,7 +126,28 @@ void Graphics::playMusic() {
     }
 }
 
+void Graphics::playMenuMusic() {
+    if (menuMusic) {
+        // Si cette musique ne joue pas déjà
+        if (Mix_PlayingMusic() == 0 || Mix_GetMusicType(NULL) != MUS_MP3) {
+            Mix_PlayMusic(menuMusic, -1); // -1 = boucle infinie
+        }
+    }
+}
+
 void Graphics::stopMusic() {
     // On arrête complètement la musique (Halt)
     Mix_HaltMusic();
+}
+
+void Graphics::playSoundPlus() {
+    if (soundPlus) {
+        Mix_PlayChannel(-1, soundPlus, 0); // -1 = premier canal libre, 0 = pas de boucle
+    }
+}
+
+void Graphics::playSoundMin() {
+    if (soundMin) {
+        Mix_PlayChannel(-1, soundMin, 0);
+    }
 }

@@ -115,6 +115,8 @@ int main() {
 
     settingsIconTexture = graphics.getSettingsIconTexture();
 
+    graphics.playMenuMusic();
+
     SDL_Event event;
     bool running = true;
 
@@ -179,6 +181,7 @@ int main() {
                 if (menu.getCurrentScreenState() == Menu::MAIN_MENU) {
                     if (action == Menu::START_SIMULATION) {
                         // Lancement de la simulation
+                        graphics.stopMusic();
                         simulation = std::make_unique<Simulation>(maxEntities);
                         isPaused = false;
                         simulationSpeed = 1;
@@ -189,11 +192,13 @@ int main() {
                     } else if (action == Menu::QUIT) {
                         running = false;
                     } else if (action == Menu::OPEN_SETTINGS) {
+                        graphics.stopMusic();
                         menu.setScreenState(Menu::SETTINGS_SCREEN);
                     }
                 }
                 else if (menu.getCurrentScreenState() == Menu::SETTINGS_SCREEN) {
                     if (action == Menu::SAVE_SETTINGS) {
+                        graphics.playMenuMusic();
                         menu.setScreenState(Menu::MAIN_MENU);
                     }
                     else if (action == Menu::CHANGE_CELL_COUNT) {
@@ -201,10 +206,16 @@ int main() {
                         SDL_GetMouseState(&mouseX, &mouseY);
 
                         if (SDL_PointInRect(new SDL_Point{mouseX, mouseY}, &menu.countUpButton.rect)) {
-                            if (maxEntities < MAX_CELLS) maxEntities++;
+                            if (maxEntities < MAX_CELLS) {
+                                maxEntities++;
+                                graphics.playSoundPlus(); // <--- JOUER LE SON PLUS
+                            }
                         }
                         else if (SDL_PointInRect(new SDL_Point{mouseX, mouseY}, &menu.countDownButton.rect)) {
-                            if (maxEntities > MIN_CELLS) maxEntities--;
+                            if (maxEntities > MIN_CELLS) {
+                                maxEntities--;
+                                graphics.playSoundMin(); // <--- JOUER LE SON MOINS
+                            }
                         }
                     }
                 }
@@ -290,6 +301,7 @@ int main() {
                                 menu.setScreenState(Menu::MAIN_MENU);
                                 isControlPanelVisible = false;
                                 clickHandled = true;
+                                graphics.playMenuMusic();
                                 graphics.stopMusic();
                             }
                         }

@@ -23,6 +23,10 @@ public:
     void playMusic();
     void stopMusic();
 
+    void playSoundPlus();
+    void playSoundMin();
+    void playMenuMusic();
+
 private:
     SDL_Window* window;
     SDL_Renderer* renderer;
@@ -31,6 +35,10 @@ private:
     SDL_Texture* settingsIconTexture = nullptr;
 
     Mix_Music* bgMusic = nullptr;
+    Mix_Music* menuMusic = nullptr;
+
+    Mix_Chunk* soundPlus = nullptr;
+    Mix_Chunk* soundMin = nullptr;
 };
 
 #endif //EVOARENA_GRAPHICS_H
