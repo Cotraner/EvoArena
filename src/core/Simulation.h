@@ -5,6 +5,8 @@
 #include <map>
 #include <string>
 #include <SDL2/SDL.h>
+#include <thread> // <--- AJOUT OBLIGATOIRE
+#include <mutex>  // <--- AJOUT OBLIGATOIRE
 #include "../Entity/Entity.h"
 #include "../Entity/Projectile.h"
 
@@ -35,6 +37,10 @@ private:
     std::vector<Entity> inspectionStack;
     std::vector<Entity> lastSurvivors;
 
+    // --- MUTEX POUR LE MULTITHREADING ---
+    std::mutex simMutex; // <--- AJOUT : Protège les données partagées
+    // ------------------------------------
+
     float panelTargetX;
     float panelCurrentX;
 
@@ -47,8 +53,11 @@ private:
     void initialize(int initialEntityCount);
     void triggerReproduction(const std::vector<Entity>& parents);
     void drawStatsPanel(SDL_Renderer* renderer, int panelX);
-    void updateLogic(int speedMultiplier);
-    void updatePhysics(int speedMultiplier);
+
+    // --- NOUVELLE FONCTION WORKER (Remplace updateLogic et updatePhysics) ---
+    void updateLogicAndPhysicsRange(int startIdx, int endIdx, int speedMultiplier);
+    // -----------------------------------------------------------------------
+
     void updateProjectiles();
     void cleanupDead();
 
