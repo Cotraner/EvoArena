@@ -4,7 +4,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include <SDL2/SDL_image.h>
-#include "../constants.h" // Assurez-vous que struct Camera est bien dedans !
+#include "../constants.h"
 #include <algorithm>
 #include <string>
 #include <cstdlib>
@@ -14,161 +14,131 @@
 
 class Projectile;
 
+// Represents an entity in the game, including its stats, behavior, and rendering
 class Entity {
-
 public:
+    // Possible states for the entity
     enum State {
-        WANDER, // Errance
-        COMBAT, // Attaque (ou Soin pour Healer)
-        FLEE,   // Fuite (PV bas)
-        FORAGE  // Cherche nourriture (Stamina basse)
+        WANDER,
+        COMBAT,
+        FLEE,
+        FORAGE
     };
 
+    // Constructor and destructor
     Entity(std::string name, int x, int y, SDL_Color color,
            const float geneticCode[12], int generation,
            std::string parent1_name, std::string parent2_name);
     ~Entity();
 
+    // Updates the entity's state
     void update(int speedMultiplier);
-    // Note: On passe Camera par référence constante
+
+    // Renders the entity on the screen
     void draw(SDL_Renderer* renderer, const Camera& cam, bool showDebug = false);
+
+    // Chooses a new direction for movement
     void chooseDirection(int target[2] = nullptr);
 
-    // --- KNOCKBACK ---
+    // Applies a knockback effect
     void knockBackFrom(int sourceX, int sourceY, int force);
 
-    // 0 = Melee, 1 = Ranged, 2 = Healer
-    int getEntityType() const {
-        float val = geneticCode[10];
-        if (val < 0.33f) return 0; // Melee
-        if (val < 0.66f) return 1; // Ranged
-        return 2;                  // Healer
-    }
+    // Determines the entity type (Melee, Ranged, or Healer)
+    int getEntityType() const;
 
-    // Reçoit du soin (borné au maxHealth)
-    void receiveHealing(int amount) {
-        if (!isAlive) return;
-        health += amount;
-        if (health > maxHealth) health = maxHealth;
-    }
+    // Heals the entity
+    void receiveHealing(int amount);
 
-    // Vérifie si l'autre entité est un allié (basé sur la couleur)
-    bool isAlliedWith(const Entity& other) const {
-        int diff = std::abs(color.r - other.color.r) +
-                   std::abs(color.g - other.color.g) +
-                   std::abs(color.b - other.color.b);
-        return diff < 40; // Tolérance de couleur pour la "famille"
-    }
+    // Checks if another entity is an ally
+    bool isAlliedWith(const Entity& other) const;
 
-    // --- Setters / Actions ---
-    void clearTarget() { targetX = -1; targetY = -1; }
-    void setX(int newX) { x = newX; }
-    void setY(int newY) { y = newY; }
+    // Clears the current movement target
+    void clearTarget();
+
+    // Setters for position and state
+    void setX(int newX);
+    void setY(int newY);
     void die();
     void takeDamage(int amount);
     bool consumeStamina(int amount);
+    void setIsFleeing(bool fleeing);
+    void setIsCharging(bool charging);
+    void setCurrentState(State s);
 
-    void setIsFleeing(bool fleeing) { isFleeing = fleeing; }
-    void setIsCharging(bool charging) { isCharging = charging; }
+    // Getters for basic properties
+    [[nodiscard]] std::string getName() const;
+    SDL_Color getColor() const;
+    int getX() const;
+    int getY() const;
+    int getRad() const;
+    int getSightRadius() const;
+    State getCurrentState() const;
+    std::string getCurrentStateString() const;
 
-    void setCurrentState(State s) { currentState = s; }
+    // Getters for genetic code
+    const float* getGeneticCode() const;
+    float getKiteRatio() const;
+    float getWeaponGene() const;
+    bool getIsRanged() const;
+    int getGeneration() const;
+    std::string getParent1Name() const;
+    std::string getParent2Name() const;
+    int getCurrentTraitID() const;
 
+    // Getters for derived stats
+    int getHealth() const;
+    void setHealth(int h);
+    int getMaxHealth() const;
+    int getStamina() const;
+    int getMaxStamina() const;
+    bool getIsAlive() const;
+    int getSpeed() const;
+    float getArmor() const;
+    int getDamage() const;
+    int getAttackRange() const;
+    Uint32 getAttackCooldown() const;
+    int getProjectileSpeed() const;
+    int getProjectileRadius() const;
+    int getStaminaAttackCost() const;
 
-    // --- Getters de Base ---
-    [[nodiscard]] std::string getName() const { return name; }
-    SDL_Color getColor() const { return color; }
-    int getX() const { return x; }
-    int getY() const { return y; }
-    int getRad() const { return rad; }
-    int getSightRadius() const { return sightRadius; }
-    State getCurrentState() const { return currentState; }
+    // Getters for biological traits
+    float getDamageFragility() const;
+    float getStaminaEfficiency() const;
+    float getBaseHealthRegen() const;
+    float getMyopiaFactor() const;
+    float getAimingPenalty() const;
+    int getFertilityFactor() const;
+    float getAgingRate() const;
+    float getBravery() const;
+    float getGreed() const;
 
-    // CORRECTION ICI : Suppression de la ligne en double
-    std::string getCurrentStateString() const {
-        switch (currentState) {
-            case WANDER: return "WANDER";
-            case COMBAT: return "COMBAT";
-            case FLEE: return "FLEE";
-            case FORAGE: return "FORAGE";
-            default: return "UNKNOWN";
-        }
-    }
-
-    // --- Getters du Code Génétique ---
-    const float* getGeneticCode() const { return geneticCode; }
-    float getKiteRatio() const { return geneticCode[2]; }
-    float getWeaponGene() const { return geneticCode[1]; }
-
-    // Note: getIsRanged est conservé pour compatibilité
-    bool getIsRanged() const { return getEntityType() == 1; }
-
-    int getGeneration() const { return generation; }
-    std::string getParent1Name() const { return parent1_name; }
-    std::string getParent2Name() const { return parent2_name; }
-    int getCurrentTraitID() const { return (int)geneticCode[11]; }
-
-    // --- Getters des Stats Dérivées ---
-    int getHealth() const { return health; }
-    void setHealth(int h) { health = h; }
-    int getMaxHealth() const { return maxHealth; }
-    int getStamina() const { return stamina; }
-    int getMaxStamina() const { return maxStamina; }
-    bool getIsAlive() const { return isAlive; }
-    int getSpeed() const { return speed; }
-    float getArmor() const { return armor; }
-    int getDamage() const { return damage; }
-    int getAttackRange() const { return attackRange; }
-    Uint32 getAttackCooldown() const { return attackCooldown; }
-    int getProjectileSpeed() const { return projectileSpeed; }
-    int getProjectileRadius() const { return projectileRadius; }
-    int getStaminaAttackCost() const { return staminaAttackCost; }
-
-    // --- Getters Bio ---
-    float getDamageFragility() const { return geneticCode[3]; }
-    float getStaminaEfficiency() const { return geneticCode[4]; }
-    float getBaseHealthRegen() const { return geneticCode[5]; }
-    float getMyopiaFactor() const { return geneticCode[6]; }
-    float getAimingPenalty() const { return geneticCode[7]; }
-    int getFertilityFactor() const { return (int)geneticCode[9]; }
-    float getAgingRate() const { return geneticCode[8]; }
-    float getBravery() const { return geneticCode[12]; } // 0.0 à 1.0
-    float getGreed() const { return geneticCode[13]; }   // 0.0 à 1.0
-
+    // Generates a random color
     static SDL_Color generateRandomColor();
 
-    void restoreStamina(int amount, int speedMultiplier) {
-        stamina += amount;
-        if (stamina > maxStamina) stamina = maxStamina;
-
-        // Calcul de la durée adaptée
-        int duration = 10 / (speedMultiplier > 0 ? speedMultiplier : 1);
-        if (duration < 1) duration = 1;
-
-        flashTimer = duration;
-    }
+    // Restores stamina and triggers a flash effect
+    void restoreStamina(int amount, int speedMultiplier);
 
 private:
-    int flashTimer = 0;
+    // Calculates derived stats based on genetic code and traits
     void calculateDerivedStats();
 
+    // Constants for stamina and health regeneration
     static constexpr Uint32 REGEN_COOLDOWN_MS = 2000;
     static constexpr Uint32 STAMINA_REGEN_DELAY_MS = 3000;
     static constexpr int STAMINA_REGEN_RATE = 1;
     static constexpr int STAMINA_FLEE_COST_PER_FRAME = 4;
     static constexpr int STAMINA_CHARGE_COST_PER_FRAME = 3;
 
-    // --- MEMBRES ---
+    // Entity properties
     std::string name;
-    int x,y;
+    int x, y;
     bool isAlive = true;
     SDL_Color color;
     int rad;
     float geneticCode[14];
 
-    // --- ÉTAT ---
+    // State and stats
     State currentState = WANDER;
-
-    // --- STATS ---
     int health;
     int maxHealth;
     int speed;
@@ -184,7 +154,7 @@ private:
     float armor = 0.0f;
     int regenAmount = 0;
 
-    // --- Logique ---
+    // Movement and behavior
     int direction[2]{};
     int targetX = -1;
     int targetY = -1;
@@ -195,6 +165,7 @@ private:
     bool isFleeing = false;
     bool isCharging = false;
 
+    // Metadata
     int generation;
     std::string parent1_name;
     std::string parent2_name;

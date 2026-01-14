@@ -7,17 +7,18 @@
 #include <iomanip>
 #include <sstream>
 #include <string>
-#include <thread> // Pour le multithreading
-#include <mutex>  // Pour la protection des données (simMutex)
+#include <thread>
+#include <mutex>
 
 namespace {
+    // Constants for UI and genetic parameters
     const int PANEL_WIDTH = 300;
     const int SURVIVOR_COUNT = 20;
     const int MUTATION_CHANCE_PERCENT = 5;
     const int RAD_MUTATION_AMOUNT = 3;
     const int GENE_MUTATION_AMOUNT = 10;
 
-    // Constantes génétiques
+    // Genetic limits
     const float FRAGILITY_MAX = 0.3f;
     const float EFFICIENCY_MAX = 0.5f;
     const float REGEN_MAX = 0.2f;
@@ -27,20 +28,20 @@ namespace {
     const float AGING_MAX_FLOAT = 0.01f;
 }
 
+// Constructor: Initializes the simulation with the maximum number of entities
 Simulation::Simulation(int maxEntities) :
         maxEntities(maxEntities),
-        selectedLivingEntity(nullptr)
-{
+        selectedLivingEntity(nullptr) {
     panelCurrentX = (float)WINDOW_WIDTH;
     panelTargetX = (float)WINDOW_WIDTH;
     TraitManager::loadTraits("../assets/json/mutations.JSON");
     initialize(maxEntities);
 }
 
-Simulation::~Simulation() {
-    // Rien de spécial à détruire, les vectors se gèrent seuls
-}
+// Destructor: Cleans up resources (automatic for STL containers)
+Simulation::~Simulation() = default;
 
+// Initializes the simulation with a given number of entities
 void Simulation::initialize(int initialEntityCount) {
     currentGeneration = 0;
     entities.clear();
@@ -49,7 +50,7 @@ void Simulation::initialize(int initialEntityCount) {
     genealogyArchive.clear();
     inspectionStack.clear();
     selectedLivingEntity = nullptr;
-    foods.clear(); // Important : On vide la nourriture au reset
+    foods.clear();
 
     panelCurrentX = (float)WINDOW_WIDTH;
     panelTargetX = (float)WINDOW_WIDTH;
@@ -59,62 +60,38 @@ void Simulation::initialize(int initialEntityCount) {
     for (int i = 0; i < initialEntityCount; ++i) {
         float newGeneticCode[14];
 
-        // 1. Physique de base (Taille aléatoire)
-        newGeneticCode[0] = 10.0f + (float)(std::rand() % 31);
+        // Generate random genetic code for the entity
+        newGeneticCode[0] = 10.0f + (float)(std::rand() % 31); // Size
         int randomRad = (int)newGeneticCode[0];
-
-        // Position spawn (évite les murs)
         int randomX = randomRad + (std::rand() % (WORLD_WIDTH - 2 * randomRad));
         int randomY = randomRad + (std::rand() % (WORLD_HEIGHT - 2 * randomRad));
-
         std::string name = "G0-E" + std::to_string(i + 1);
         SDL_Color color = Entity::generateRandomColor();
 
-        // 2. Armement & Rôle (Aléatoire pour la diversité du gameplay)
-        newGeneticCode[1] = (float)(std::rand() % 101); // Weapon Type (Puissance vs Vitesse)
+        // Weapon and role assignment
+        newGeneticCode[1] = (float)(std::rand() % 101); // Weapon type
         newGeneticCode[2] = (10 + (std::rand() % 91)) / 100.0f; // Kite distance
-
-        // Définition du Rôle (Melee / Ranged / Healer)
         int roleRoll = std::rand() % 100;
-        if (roleRoll < 33) {
-            newGeneticCode[10] = 0.15f; // Melee
-        } else if (roleRoll < 66) {
-            newGeneticCode[10] = 0.50f; // Ranged
-        } else {
-            newGeneticCode[10] = 0.85f; // Healer
-        }
-        // Variation légère pour éviter les clones
+        newGeneticCode[10] = (roleRoll < 33) ? 0.15f : (roleRoll < 66) ? 0.50f : 0.85f;
         newGeneticCode[10] += ((float)(std::rand() % 11) - 5.0f) / 100.0f;
 
-        // --- 3. NETTOYAGE COMPLET DES GÈNES BIO (GÉNÉRATION 0 PURE) ---
-        newGeneticCode[3] = 0.0f; // Fragility
-        newGeneticCode[4] = 0.0f; // Stamina Efficiency
-        newGeneticCode[5] = 0.0f; // Health Regen
-        newGeneticCode[6] = 0.0f; // Myopia
-        newGeneticCode[7] = 0.0f; // Aiming Penalty
-        newGeneticCode[8] = 0.0f; // Aging
-        newGeneticCode[9] = 0.0f; // Fertility
+        // Reset biological genes
+        for (int j = 3; j <= 9; ++j) newGeneticCode[j] = 0.0f;
 
-        // --- 4. SÉLECTION DU TRAIT PRINCIPAL (JSON) ---
+        // Assign a dominant trait
         int maxTraits = TraitManager::getCount();
+        newGeneticCode[11] = (maxTraits > 1 && (std::rand() % 100) < 20) ? 
+                             (float)(1 + (std::rand() % (maxTraits - 1))) : 0.0f;
 
-        if (maxTraits > 1 && (std::rand() % 100) < 20) {
-            // 20% de chance d'avoir un trait spécial
-            int dominantTraitID = 1 + (std::rand() % (maxTraits - 1));
-            newGeneticCode[11] = (float)dominantTraitID;
-        } else {
-            // La majorité de la population est "Standard" au début
-            newGeneticCode[11] = 0.0f; // Classique
-        }
-
-        // --- 5. Gènes Comportementaux (Bravoure / Gourmandise) ---
-        newGeneticCode[12] = (float)(std::rand() % 101) / 100.0f;
-        newGeneticCode[13] = (float)(std::rand() % 101) / 100.0f;
+        // Behavioral genes
+        newGeneticCode[12] = (float)(std::rand() % 101) / 100.0f; // Bravery
+        newGeneticCode[13] = (float)(std::rand() % 101) / 100.0f; // Greed
 
         entities.emplace_back(name, randomX, randomY, color, newGeneticCode, currentGeneration, "NONE", "NONE");
     }
 }
 
+// Handles reproduction and creates a new generation
 void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
     std::vector<Entity> newGeneration;
     int numParents = parents.size();
@@ -127,7 +104,7 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
     int newGen = parents[0].getGeneration() + 1;
     this->currentGeneration = newGen;
 
-    // --- CRÉATION DE LA LOTERIE ---
+    // Create a lottery for parent selection
     std::vector<int> parentLottery;
     parentLottery.reserve(numParents * 10);
 
@@ -139,7 +116,7 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
         for (int t = 0; t < tickets; ++t) parentLottery.push_back(i);
     }
 
-    // --- GÉNÉRATION DES ENFANTS ---
+    // Generate children
     for (int i = 0; i < maxEntities; ++i) {
         int p1_index = parentLottery[std::rand() % parentLottery.size()];
         int p2_index = parentLottery[std::rand() % parentLottery.size()];
@@ -172,22 +149,22 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
             }
 
             if ((std::rand() % 100) < MUTATION_CHANCE_PERCENT) {
-                if (idx == 10) { // Rôle
+                if (idx == 10) { // Role
                     childGeneticCode[idx] += ((float)((std::rand() % 41) - 20) / 100.0f);
-                } else if (idx == 0) { // Taille
+                } else if (idx == 0) { // Size
                     childGeneticCode[idx] += (float)((std::rand() % 7) - 3);
                 } else {
                     childGeneticCode[idx] += ((float)((std::rand() % 21) - 10) / 100.0f);
                 }
             }
 
-            // Limites (Clamp)
+            // Clamp values
             if (idx == 0) childGeneticCode[idx] = std::max(10.0f, std::min(50.0f, childGeneticCode[idx]));
             else if (idx == 10) childGeneticCode[idx] = std::clamp(childGeneticCode[idx], 0.0f, 1.0f);
             else if (idx != 11 && childGeneticCode[idx] < 0) childGeneticCode[idx] = 0.0f;
         }
 
-        // Héritage du Trait (ID 11) - Dominance
+        // Trait inheritance
         int chosenID = 0;
         int roll = std::rand() % 100;
         if (roll < 45) chosenID = parent1.getCurrentTraitID();
@@ -198,7 +175,7 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
         }
         childGeneticCode[11] = (float)chosenID;
 
-        // Couleur
+        // Color inheritance
         SDL_Color c1 = parent1.getColor();
         SDL_Color c2 = parent2.getColor();
         SDL_Color childColor;
@@ -219,15 +196,19 @@ void Simulation::triggerReproduction(const std::vector<Entity>& parents) {
     inspectionStack.clear();
 }
 
-void Simulation::triggerManualRestart() { triggerReproduction(lastSurvivors); }
+// Restarts the simulation manually
+void Simulation::triggerManualRestart() {
+    triggerReproduction(lastSurvivors);
+}
 
+// Handles user input events
 void Simulation::handleEvent(const SDL_Event &event, const Camera& cam) {
     if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
         int mouseX = event.button.x;
         int mouseY = event.button.y;
         SDL_Point mousePoint = {mouseX, mouseY};
 
-        // Clic sur l'interface (Panel)
+        // Handle clicks on the UI panel
         if (!inspectionStack.empty() && mouseX > panelCurrentX) {
             if (SDL_PointInRect(&mousePoint, &panelBack_rect) && inspectionStack.size() > 1) inspectionStack.pop_back();
             else if (SDL_PointInRect(&mousePoint, &panelParent1_rect)) {
@@ -240,7 +221,7 @@ void Simulation::handleEvent(const SDL_Event &event, const Camera& cam) {
             return;
         }
 
-        // Clic dans le monde (Sélection Entité)
+        // Handle clicks in the world (entity selection)
         float worldMouseX = mouseX / cam.zoom + cam.x;
         float worldMouseY = mouseY / cam.zoom + cam.y;
         bool entityClicked = false;
@@ -260,40 +241,37 @@ void Simulation::handleEvent(const SDL_Event &event, const Camera& cam) {
     }
 }
 
-// --- FONCTION DE MISE À JOUR PRINCIPALE (MULTITHREADÉE) ---
+// Updates the simulation state, including multithreaded logic and physics
 Simulation::SimUpdateStatus Simulation::update(int speedMultiplier, bool autoRestart) {
-
-    // 1. DÉTECTION ET CONFIGURATION DES THREADS
     unsigned int numThreads = std::thread::hardware_concurrency();
-    if (numThreads == 0) numThreads = 2; // Sécurité
+    if (numThreads == 0) numThreads = 2;
 
     std::vector<std::thread> threads;
     int totalEntities = entities.size();
     int chunkSize = totalEntities / numThreads;
 
-    // 2. LANCEMENT DES WORKERS EN PARALLÈLE
+    // Launch threads for logic and physics updates
     for (unsigned int i = 0; i < numThreads; ++i) {
         int start = i * chunkSize;
         int end = (i == numThreads - 1) ? totalEntities : (start + chunkSize);
 
-        // On lance la fonction qui combine Logique et Physique sur une plage d'entités
         threads.emplace_back([this, start, end, speedMultiplier]() {
             this->updateLogicAndPhysicsRange(start, end, speedMultiplier);
         });
     }
 
-    // 3. ATTENTE DE LA FIN (JOIN)
+    // Wait for threads to finish
     for (auto& t : threads) {
         if (t.joinable()) t.join();
     }
 
-    // 4. ÉTAPES SÉQUENTIELLES (Non thread-safe ou rapides)
+    // Sequential updates
     spawnFood();
-    updateFood(speedMultiplier); // Gestion de la nourriture
-    updateProjectiles();         // Mise à jour des projectiles
-    cleanupDead();               // Suppression des morts
+    updateFood(speedMultiplier);
+    updateProjectiles();
+    cleanupDead();
 
-    // --- FIN DE GÉNÉRATION ---
+    // Handle end of generation
     if (entities.size() <= SURVIVOR_COUNT && !entities.empty()) {
         lastSurvivors = entities;
         for (const auto& winner : lastSurvivors) genealogyArchive.insert({winner.getName(), winner});
@@ -301,7 +279,7 @@ Simulation::SimUpdateStatus Simulation::update(int speedMultiplier, bool autoRes
         else return SimUpdateStatus::FINISHED;
     }
 
-    // --- GESTION ANIMATION UI ---
+    // UI animation
     if (!inspectionStack.empty()) panelTargetX = (float)(WINDOW_WIDTH - PANEL_WIDTH); else panelTargetX = (float)WINDOW_WIDTH;
     if(selectedLivingEntity != nullptr && !selectedLivingEntity->getIsAlive()) selectedLivingEntity = nullptr;
     float distance = panelTargetX - panelCurrentX;
@@ -310,19 +288,13 @@ Simulation::SimUpdateStatus Simulation::update(int speedMultiplier, bool autoRes
     return SimUpdateStatus::RUNNING;
 }
 
-// --- FONCTION WORKER (LOGIQUE + PHYSIQUE) ---
-// Cette fonction est exécutée par chaque thread sur sa portion du tableau 'entities'
+// Updates a range of entities' logic and physics (used by threads)
 void Simulation::updateLogicAndPhysicsRange(int startIdx, int endIdx, int speedMultiplier) {
-
     for (int i = startIdx; i < endIdx; ++i) {
         Entity& entity = entities[i];
         if (!entity.getIsAlive()) continue;
 
-        // ==========================================
-        // PARTIE 1 : IA & LOGIQUE (ANCIEN updateLogic)
-        // ==========================================
-
-        // 1. Perception
+        // Perception and decision-making
         Entity* closestTarget = nullptr;
         float closestDist = 100000.0f;
         bool targetIsFriendly = false;
@@ -345,13 +317,13 @@ void Simulation::updateLogicAndPhysicsRange(int startIdx, int endIdx, int speedM
                         isFriendlyInteraction = false;
                     }
                 } else {
-                    isValidTarget = true; // Melee/Ranged attaquent tout
+                    isValidTarget = true;
                     isFriendlyInteraction = false;
                 }
 
                 if (isValidTarget) {
                     if (targetIsFriendly && !isFriendlyInteraction) {
-                        if (dist < 20.0f) { // Danger immédiat
+                        if (dist < 20.0f) {
                             closestDist = dist; closestTarget = &other; targetIsFriendly = false;
                         }
                     } else if (dist < closestDist) {
@@ -361,7 +333,7 @@ void Simulation::updateLogicAndPhysicsRange(int startIdx, int endIdx, int speedM
             }
         }
 
-        // Recherche Nourriture (lecture seule, ok)
+        // Food perception
         int foodIndex = -1;
         float closestFoodDist = 100000.0f;
         for (size_t k = 0; k < foods.size(); ++k) {
@@ -369,7 +341,7 @@ void Simulation::updateLogicAndPhysicsRange(int startIdx, int endIdx, int speedM
             if (d < closestFoodDist) { closestFoodDist = d; foodIndex = (int)k; }
         }
 
-        // 2. Décision (État)
+        // Decision-making
         float healthPct = (float)entity.getHealth() / (float)entity.getMaxHealth();
         float staminaPct = (float)entity.getStamina() / (float)entity.getMaxStamina();
         bool dangerClose = (closestTarget && closestDist < 150.0f);
@@ -386,7 +358,7 @@ void Simulation::updateLogicAndPhysicsRange(int startIdx, int endIdx, int speedM
             entity.setCurrentState(Entity::WANDER);
         }
 
-        // 3. Action
+        // Action execution
         entity.setIsFleeing(false);
         entity.setIsCharging(false);
 
@@ -414,7 +386,7 @@ void Simulation::updateLogicAndPhysicsRange(int startIdx, int endIdx, int speedM
                 bool isRanged = (entity.getEntityType() == 1);
                 bool isHealer = (entity.getEntityType() == 2);
 
-                // Mouvement Combat
+                // Combat movement
                 if (isHealer) {
                     if (targetIsFriendly) {
                         if (closestDist < entity.getRad() + closestTarget->getRad() + 10) entity.chooseDirection(nullptr);
@@ -433,18 +405,17 @@ void Simulation::updateLogicAndPhysicsRange(int startIdx, int endIdx, int speedM
                     } else {
                         entity.chooseDirection(nullptr);
                     }
-                } else { // Melee
+                } else {
                     entity.setIsCharging(closestDist > attackRange);
                     if (closestDist <= attackRange) entity.chooseDirection(nullptr);
                     else entity.chooseDirection(targetPos);
                 }
 
-                // Tir / Attaque (SECTION CRITIQUE : INTERACTION AVEC AUTRES OU PROJECTILES)
+                // Attack or heal
                 if (closestDist <= attackRange + 10) {
                     Uint32 currentTime = SDL_GetTicks();
                     Uint32 effectiveCooldown = (speedMultiplier > 0) ? (entity.getAttackCooldown() / speedMultiplier) : entity.getAttackCooldown();
 
-                    // Note : L'accès à lastShotTime en lecture/écriture doit être protégé
                     bool canShoot = false;
                     {
                         std::lock_guard<std::mutex> lock(simMutex);
@@ -455,29 +426,29 @@ void Simulation::updateLogicAndPhysicsRange(int startIdx, int endIdx, int speedM
 
                     if (canShoot) {
                         if (entity.consumeStamina(entity.getStaminaAttackCost())) {
-                            std::lock_guard<std::mutex> lock(simMutex); // VERROUILLAGE pour les modifications globales
+                            std::lock_guard<std::mutex> lock(simMutex);
 
-                            lastShotTime[entity.getName()] = currentTime; // Maj timer
+                            lastShotTime[entity.getName()] = currentTime;
 
                             if (isHealer && targetIsFriendly) {
                                 int healAmount = entity.getDamage();
                                 if (entity.getHealth() > healAmount) {
-                                    closestTarget->receiveHealing(healAmount); // Modifie l'autre entité
-                                    entity.takeDamage(healAmount);             // Modifie soi-même (ok, mais sous lock pour cohérence)
+                                    closestTarget->receiveHealing(healAmount);
+                                    entity.takeDamage(healAmount);
                                 }
                             } else if (isHealer && !targetIsFriendly) {
                                 Projectile newP(entity.getX(), entity.getY(), closestTarget->getX(), closestTarget->getY(),
                                                 entity.getProjectileSpeed(), entity.getDamage(), entity.getAttackRange(),
                                                 entity.getColor(), entity.getProjectileRadius(), entity.getName());
-                                projectiles.push_back(newP); // Modifie vecteur global
+                                projectiles.push_back(newP);
                             } else if (isRanged) {
                                 Projectile newP(entity.getX(), entity.getY(), closestTarget->getX(), closestTarget->getY(),
                                                 entity.getProjectileSpeed(), entity.getDamage(), attackRange,
                                                 entity.getColor(), entity.getProjectileRadius(), entity.getName());
-                                projectiles.push_back(newP); // Modifie vecteur global
-                            } else { // Melee
-                                closestTarget->takeDamage(entity.getDamage()); // Modifie l'autre entité
-                                closestTarget->knockBackFrom(entity.getX(), entity.getY(), 40); // Modifie l'autre entité
+                                projectiles.push_back(newP);
+                            } else {
+                                closestTarget->takeDamage(entity.getDamage());
+                                closestTarget->knockBackFrom(entity.getX(), entity.getY(), 40);
                             }
                         }
                     }
@@ -488,7 +459,6 @@ void Simulation::updateLogicAndPhysicsRange(int startIdx, int endIdx, int speedM
             default: {
                 Entity* globalTarget = nullptr;
                 float minGlobalDist = 1000000.0f;
-                // Recherche globale simplifiée (pourrait être optimisée)
                 for (auto &other : entities) {
                     if (&entity != &other && other.getIsAlive()) {
                         bool isEnemy = !entity.isAlliedWith(other);
@@ -510,13 +480,10 @@ void Simulation::updateLogicAndPhysicsRange(int startIdx, int endIdx, int speedM
             }
         }
 
-        // ============================================
-        // PARTIE 2 : PHYSIQUE (ANCIEN updatePhysics)
-        // ============================================
-
+        // Update physics
         entity.update(speedMultiplier);
 
-        // COLLISIONS ENTRE ENTITÉS
+        // Handle collisions
         for (auto &other : entities) {
             if (&entity != &other && other.getIsAlive()) {
                 int dx = entity.getX() - other.getX();
@@ -531,9 +498,6 @@ void Simulation::updateLogicAndPhysicsRange(int startIdx, int endIdx, int speedM
                     float normX = (distance > 0) ? dx / distance : 1.0f;
                     float normY = (distance > 0) ? dy / distance : 0.0f;
 
-                    // SECTION CRITIQUE : Modification de position potentiellement concurrente
-                    // (Bien que l'on modifie 'entity' qui est locale au thread, 'other' est lu,
-                    // et dans une simulation stricte, on verrouille pour éviter les incohérences)
                     {
                         std::lock_guard<std::mutex> lock(simMutex);
                         entity.setX(entity.getX() + static_cast<int>(normX * separationDistance));
@@ -545,6 +509,7 @@ void Simulation::updateLogicAndPhysicsRange(int startIdx, int endIdx, int speedM
     }
 }
 
+// Draws the stats panel for the selected entity
 void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
     auto float_to_string = [](float val, int precision = 1) {
         std::stringstream ss;
@@ -659,6 +624,7 @@ void Simulation::drawStatsPanel(SDL_Renderer* renderer, int panelX) {
     }
 }
 
+// Updates the state of all projectiles
 void Simulation::updateProjectiles() {
     projectiles.erase(std::remove_if(projectiles.begin(), projectiles.end(), [&](Projectile& proj) {
         proj.update();
@@ -675,10 +641,12 @@ void Simulation::updateProjectiles() {
     }), projectiles.end());
 }
 
+// Removes dead entities from the simulation
 void Simulation::cleanupDead() {
     entities.erase(std::remove_if(entities.begin(), entities.end(), [](const Entity &entity) { return !entity.getIsAlive(); }), entities.end());
 }
 
+// Renders the simulation, including entities, projectiles, and UI
 void Simulation::render(SDL_Renderer* renderer, bool showDebug, const Camera& cam) {
     for (const auto& f : foods) {
         float sx = (f.x - cam.x) * cam.zoom;
@@ -700,6 +668,7 @@ void Simulation::render(SDL_Renderer* renderer, bool showDebug, const Camera& ca
     if (panelCurrentX < WINDOW_WIDTH) drawStatsPanel(renderer, static_cast<int>(panelCurrentX));
 }
 
+// Spawns food items in the simulation
 void Simulation::spawnFood() {
     if (foods.size() < MAX_FOOD_COUNT && (rand() % 100 < FOOD_SPAWN_RATE)) {
         Food f;
@@ -709,6 +678,7 @@ void Simulation::spawnFood() {
     }
 }
 
+// Updates the state of food items, including consumption by entities
 void Simulation::updateFood(int speedMultiplier) {
     auto it = foods.begin();
     while (it != foods.end()) {

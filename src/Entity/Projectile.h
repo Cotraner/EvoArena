@@ -7,15 +7,20 @@
 #include <cmath>
 #include <string>
 
+// Represents a projectile in the game, including its movement, rendering, and state.
 class Projectile {
 public:
+    // Constructor and destructor
     Projectile(int startX, int startY, float targetX, float targetY, int speed, int damage, int range, SDL_Color color, int radius, std::string shooterName);
     ~Projectile();
 
+    // Updates the projectile's position and state
     void update();
+
+    // Renders the projectile on the screen
     void draw(SDL_Renderer* renderer, const Camera& cam);
 
-    // Getters
+    // Getters for projectile properties
     int getX() const { return (int)x; }
     int getY() const { return (int)y; }
     int getDamage() const { return damage; }
@@ -23,20 +28,27 @@ public:
     bool isAlive() const { return alive; }
     std::string getShooterName() const { return shooterName; }
 
-    // Setter
+    // Marks the projectile as dead
     void setDead() { alive = false; }
 
 private:
-    float x, y;
-    float dx, dy; // Direction normalisée
-    int speed;
-    int damage;
-    int maxRange;
-    float distanceTraveled;
-    bool alive = true;
-    SDL_Color color;
-    int radius;
-    std::string shooterName;
+    // Position and movement
+    float x, y;       // Current position
+    float dx, dy;     // Normalized direction vector
+    int speed;        // Movement speed
+
+    // Projectile properties
+    int damage;       // Damage dealt by the projectile
+    int maxRange;     // Maximum range the projectile can travel
+    float distanceTraveled; // Distance traveled so far
+    bool alive = true; // Whether the projectile is still active
+
+    // Rendering properties
+    SDL_Color color;  // Color of the projectile
+    int radius;       // Radius of the projectile
+
+    // Metadata
+    std::string shooterName; // Name of the entity that fired the projectile
 };
 
 #endif //EVOARENA_PROJECTILE_H

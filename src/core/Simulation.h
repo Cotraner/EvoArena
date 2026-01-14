@@ -5,28 +5,41 @@
 #include <map>
 #include <string>
 #include <SDL2/SDL.h>
-#include <thread> // <--- AJOUT OBLIGATOIRE
-#include <mutex>  // <--- AJOUT OBLIGATOIRE
+#include <thread>
+#include <mutex>
 #include "../Entity/Entity.h"
 #include "../Entity/Projectile.h"
 
+// Manages the simulation, including entities, projectiles, and game logic
 class Simulation {
 public:
+    // Status of the simulation update
     enum class SimUpdateStatus {
         RUNNING,
         FINISHED
     };
 
+    // Constructor and destructor
     explicit Simulation(int maxEntities);
     ~Simulation();
 
+    // Updates the simulation state
     SimUpdateStatus update(int speedMultiplier, bool autoRestart);
-    int getCurrentGeneration() const { return currentGeneration; }
+
+    // Handles user input events
     void handleEvent(const SDL_Event& event, const Camera& cam);
+
+    // Renders the simulation
     void render(SDL_Renderer* renderer, bool showDebug, const Camera& cam);
+
+    // Restarts the simulation manually
     void triggerManualRestart();
 
+    // Returns the current generation number
+    int getCurrentGeneration() const { return currentGeneration; }
+
 private:
+    // Simulation state
     int currentGeneration = 0;
     int maxEntities;
     std::vector<Entity> entities;
@@ -37,44 +50,35 @@ private:
     std::vector<Entity> inspectionStack;
     std::vector<Entity> lastSurvivors;
 
-    // --- MUTEX POUR LE MULTITHREADING ---
-    std::mutex simMutex; // <--- AJOUT : Protège les données partagées
-    // ------------------------------------
+    // Mutex for thread safety
+    std::mutex simMutex;
 
+    // UI panel state
     float panelTargetX;
     float panelCurrentX;
-
-    // UI Hitboxes
     SDL_Rect panelParent1_rect{};
     SDL_Rect panelParent2_rect{};
     SDL_Rect panelBack_rect{};
 
-    // Fonctions d'aide privées
-    void initialize(int initialEntityCount);
-    void triggerReproduction(const std::vector<Entity>& parents);
-    void drawStatsPanel(SDL_Renderer* renderer, int panelX);
-
-    // --- NOUVELLE FONCTION WORKER (Remplace updateLogic et updatePhysics) ---
-    void updateLogicAndPhysicsRange(int startIdx, int endIdx, int speedMultiplier);
-    // -----------------------------------------------------------------------
-
-    void updateProjectiles();
-    void cleanupDead();
-
-    // --- SYSTÈME DE NOURRITURE ---
+    // Food system
     struct Food {
         int x, y;
-        int radius = 4; // Taille visuelle
+        int radius = 4;
     };
     std::vector<Food> foods;
 
-    // Paramètres de la nourriture
-    const int MAX_FOOD_COUNT = 60;       // Limite max sur la carte
-    const int FOOD_SPAWN_RATE = 5;       // % de chance de spawn par frame
-    const int FOOD_STAMINA_GAIN = 50;    // Combien d'énergie ça rend
-    const int FOOD_HEAL_GAIN = 10;       // (Optionnel) Un petit soin bonus
+    // Food parameters
+    const int MAX_FOOD_COUNT = 60;
+    const int FOOD_SPAWN_RATE = 5;
+    const int FOOD_STAMINA_GAIN = 50;
 
-    // Nouvelles fonctions privées
+    // Private helper functions
+    void initialize(int initialEntityCount);
+    void triggerReproduction(const std::vector<Entity>& parents);
+    void drawStatsPanel(SDL_Renderer* renderer, int panelX);
+    void updateLogicAndPhysicsRange(int startIdx, int endIdx, int speedMultiplier);
+    void updateProjectiles();
+    void cleanupDead();
     void spawnFood();
     void updateFood(int speedMultiplier);
 };

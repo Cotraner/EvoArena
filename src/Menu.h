@@ -6,7 +6,7 @@
 #include <string>
 #include "constants.h"
 
-// Structure pour représenter un bouton
+// Represents a button
 struct Button {
     SDL_Rect rect;
     std::string text;
@@ -15,59 +15,59 @@ struct Button {
 
 class Menu {
 public:
-    // Définit les actions que le menu peut renvoyer
+    // Menu actions
     enum MenuAction {
         NONE,
         START_SIMULATION,
         QUIT,
-        OPEN_SETTINGS,      // Ouvrir les paramètres
-        SAVE_SETTINGS,      // Sauvegarder et revenir
-        CHANGE_CELL_COUNT   // Changer le nombre de cellules
+        OPEN_SETTINGS,
+        SAVE_SETTINGS,
+        CHANGE_CELL_COUNT
     };
 
-    Menu(SDL_Renderer* renderer, SDL_Texture* backgroundTexture);
+    Menu(SDL_Renderer *renderer, SDL_Texture *backgroundTexture);
+
     ~Menu();
 
-    MenuAction handleEvents(const SDL_Event& event);
-    void draw(int maxEntities); // Affiche le nombre de cellules
+    MenuAction handleEvents(const SDL_Event &event); // Handle user input
+    void draw(int maxEntities); // Draw the menu
+    void updateLayout(); // Update button layout
 
-    void updateLayout();
-
-    // État du menu
+    // Menu screen states
     enum ScreenState {
         MAIN_MENU,
         SETTINGS_SCREEN
     };
 
-    void setScreenState(ScreenState state) { currentScreen = state; }
-    ScreenState getCurrentScreenState() const { return currentScreen; }
+    void setScreenState(ScreenState state); // Set current screen
+    ScreenState getCurrentScreenState() const; // Get current screen
 
-    // Boutons de l'écran Settings pour le Main.cpp
+    // Buttons for settings screen
     Button countUpButton;
     Button countDownButton;
 
 private:
-    SDL_Renderer* renderer;
-    TTF_Font* font;
-    SDL_Texture* backgroundTexture;
+    SDL_Renderer *renderer;
+    TTF_Font *font;
+    SDL_Texture *backgroundTexture;
 
     ScreenState currentScreen = MAIN_MENU;
 
-    // Boutons du Main Menu
+    // Buttons for main menu
     Button startButton;
     Button quitButton;
     Button settingsButton;
 
-    // Boutons de l'écran Settings
+    // Button for settings screen
     Button saveButton;
 
-    bool initializeTTF();
-    void drawButton(Button& button);
-    void drawText(const std::string& text, int x, int y, SDL_Color color);
+    bool initializeTTF(); // Initialize font system
+    void drawButton(Button &button); // Draw a button
+    void drawText(const std::string &text, int x, int y, SDL_Color color); // Draw text
 
-    // Fonctions de dessin spécifiques
-    void drawMainMenu(int maxEntities);
-    void drawSettingsScreen(int maxEntities);
+    // Specific drawing functions
+    void drawMainMenu(int maxEntities); // Draw main menu
+    void drawSettingsScreen(int maxEntities); // Draw settings screen
 };
 
 #endif //EVOARENA_MENU_H
