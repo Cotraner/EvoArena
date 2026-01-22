@@ -9,6 +9,7 @@
 #include <string>
 #include <thread>
 #include <mutex>
+#include "../menu.h"
 
 namespace {
     // Constants for UI and genetic parameters

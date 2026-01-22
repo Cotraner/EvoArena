@@ -461,3 +461,116 @@ void Entity::die() {
     isAlive = false;
     this->color = {100, 100, 100, 255};
 }
+
+// =========================================================
+// GETTERS AND SETTERS IMPLEMENTATION
+// =========================================================
+
+// Getters
+// Just return private values for display or logic
+std::string Entity::getName() const { return name; }
+SDL_Color Entity::getColor() const { return color; }
+int Entity::getX() const { return x; }
+int Entity::getY() const { return y; }
+int Entity::getRad() const { return rad; } // Radius (size)
+int Entity::getSightRadius() const { return sightRadius; } // Vision range
+Entity::State Entity::getCurrentState() const { return currentState; }
+
+// Convert state Enum to String for the UI panel
+std::string Entity::getCurrentStateString() const {
+    switch (currentState) {
+        case WANDER: return "WANDER"; // Just walking around
+        case COMBAT: return "COMBAT"; // Fighting
+        case FLEE:   return "FLEE";   // Running away (low HP)
+        case FORAGE: return "FORAGE"; // Looking for food
+        default:     return "UNKNOWN";
+    }
+}
+
+// Direct access to the DNA array
+const float* Entity::getGeneticCode() const { return geneticCode; }
+
+// Get specific genes by index
+float Entity::getKiteRatio() const { return geneticCode[2]; }   // Kiting distance
+float Entity::getWeaponGene() const { return geneticCode[1]; }  // Weapon type
+bool Entity::getIsRanged() const { return getEntityType() == 1; } // Helper to check if ranged
+int Entity::getGeneration() const { return generation; }
+
+// get the parents for genealogy
+std::string Entity::getParent1Name() const { return parent1_name; }
+std::string Entity::getParent2Name() const { return parent2_name; }
+
+// Trait ID is stored as a float in the genes, cast it back to int
+int Entity::getCurrentTraitID() const { return (int)std::round(geneticCode[11]); }
+
+int Entity::getHealth() const { return health; }
+void Entity::setHealth(int h) { health = h; } // Useful for debug or reset
+int Entity::getMaxHealth() const { return maxHealth; }
+int Entity::getStamina() const { return stamina; }
+
+int Entity::getMaxStamina() const { return maxStamina; }
+bool Entity::getIsAlive() const { return isAlive; }
+int Entity::getSpeed() const { return speed; }
+
+float Entity::getArmor() const { return armor; } // Damage reduction (0.0 to 1.0)
+int Entity::getDamage() const { return damage; }
+int Entity::getAttackRange() const { return attackRange; }
+Uint32 Entity::getAttackCooldown() const { return attackCooldown; }
+int Entity::getProjectileSpeed() const { return projectileSpeed; }
+
+int Entity::getProjectileRadius() const { return projectileRadius; }
+int Entity::getStaminaAttackCost() const { return staminaAttackCost; }
+
+// Named getters to avoid "magic numbers" in the code
+float Entity::getDamageFragility() const { return geneticCode[3]; }
+float Entity::getStaminaEfficiency() const { return geneticCode[4]; }
+float Entity::getBaseHealthRegen() const { return geneticCode[5]; }
+float Entity::getMyopiaFactor() const { return geneticCode[6]; }
+float Entity::getAimingPenalty() const { return geneticCode[7]; }
+int Entity::getFertilityFactor() const { return (int)geneticCode[9]; }
+float Entity::getAgingRate() const { return geneticCode[8]; }
+float Entity::getBravery() const { return geneticCode[12]; } // Flee threshold
+float Entity::getGreed() const { return geneticCode[13]; }   // Hunger threshold
+
+// --- Setters and Logic ---
+void Entity::setX(int newX) { x = newX; }
+void Entity::setY(int newY) { y = newY; }
+
+// Toggle booleans for animation/logic states
+void Entity::setIsFleeing(bool fleeing) { isFleeing = fleeing; }
+void Entity::setIsCharging(bool charging) { isCharging = charging; }
+
+void Entity::setCurrentState(State s) { currentState = s; }
+
+// Healing function (caps at max health)
+void Entity::receiveHealing(int amount) {
+    if (!isAlive) return; // Dead entities can't heal
+    health += amount;
+    if (health > maxHealth) health = maxHealth;
+}
+
+// Check if allied based on color similarity
+bool Entity::isAlliedWith(const Entity& other) const {
+    // Calculate difference for R, G, B
+    int dr = std::abs(color.r - other.color.r);
+    int dg = std::abs(color.g - other.color.g);
+    int db = std::abs(color.b - other.color.b);
+
+    // If total difference is low (< 30), they are family/friends
+    return (dr + dg + db) < 30;
+}
+
+// Restore stamina (eating) + Visual feedback
+void Entity::restoreStamina(int amount, int speedMultiplier) {
+    stamina += amount;
+    if (stamina > maxStamina) stamina = maxStamina;
+
+    // Calculate white flash duration
+    // Divide by speedMultiplier so the flash isn't too long in x100 speed
+    int duration = 10 / (speedMultiplier > 0 ? speedMultiplier : 1);
+
+    // Safety: at least 1 frame of flash
+    if (duration < 1) duration = 1;
+
+    flashTimer = duration; // Set the timer used in draw()
+}

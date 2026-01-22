@@ -182,3 +182,11 @@ void Menu::draw(int maxEntities) {
 
     SDL_RenderPresent(renderer);
 }
+
+void Menu::setScreenState(ScreenState state) {
+    currentScreen = state;
+}
+
+Menu::ScreenState Menu::getCurrentScreenState() const {
+    return currentScreen;
+}

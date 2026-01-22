@@ -43,8 +43,15 @@ public:
     // Applies a knockback effect
     void knockBackFrom(int sourceX, int sourceY, int force);
 
+
+
     // Determines the entity type (Melee, Ranged, or Healer)
-    int getEntityType() const;
+    int getEntityType() const {
+        float val = geneticCode[10];
+        if (val < 0.33f) return 0; // Melee
+        if (val < 0.66f) return 1; // Ranged
+        return 2;                  // Healer
+    }
 
     // Heals the entity
     void receiveHealing(int amount);
@@ -53,7 +60,7 @@ public:
     bool isAlliedWith(const Entity& other) const;
 
     // Clears the current movement target
-    void clearTarget();
+    void clearTarget() { targetX = -1; targetY = -1; }
 
     // Setters for position and state
     void setX(int newX);
@@ -122,6 +129,9 @@ private:
     // Calculates derived stats based on genetic code and traits
     void calculateDerivedStats();
 
+
+
+
     // Constants for stamina and health regeneration
     static constexpr Uint32 REGEN_COOLDOWN_MS = 2000;
     static constexpr Uint32 STAMINA_REGEN_DELAY_MS = 3000;
@@ -169,6 +179,9 @@ private:
     int generation;
     std::string parent1_name;
     std::string parent2_name;
+
+    //ajout du timer effacé par mégarde
+    int flashTimer = 0;
 };
 
 #endif //EVOARENA_ENTITY_H
